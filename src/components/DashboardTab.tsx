@@ -7,8 +7,7 @@ import { useBridgeKit, SEPOLIA_CHAIN_ID, ARC_CHAIN_ID } from '../hooks/useBridge
 export function DashboardTab() {
   const { address, isConnected, chainId } = useAccount()
   const { fetchTokenBalance, tokenBalance: sepoliaBalance, isLoadingBalance: sepoliaLoading } = useBridgeKit()
-  const [arcBalance, setArcBalance] = useState('0.00')
-  const [arcLoading, setArcLoading] = useState(false)
+  const { fetchTokenBalance: fetchArcBalance, tokenBalance: arcBalance, isLoadingBalance: arcLoading } = useBridgeKit()
 
   // Fetch balances on mount and when address changes
   useEffect(() => {
@@ -16,14 +15,10 @@ export function DashboardTab() {
       // Fetch Sepolia balance
       fetchTokenBalance('USDC', SEPOLIA_CHAIN_ID)
       
-      // Mock Arc balance for now
-      setArcLoading(true)
-      setTimeout(() => {
-        setArcBalance('500.00')
-        setArcLoading(false)
-      }, 1000)
+      // Fetch Arc balance
+      fetchArcBalance('USDC', ARC_CHAIN_ID)
     }
-  }, [address, isConnected, fetchTokenBalance])
+  }, [address, isConnected, fetchTokenBalance, fetchArcBalance])
 
   if (!isConnected) {
     return (
