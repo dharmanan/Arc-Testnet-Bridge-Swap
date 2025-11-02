@@ -27,7 +27,7 @@ export default function App() {
             <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
               <Zap size={24} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold">Arc Bridge Swap</h1>
+            <h1 className="text-xl font-bold">Arc Bridge</h1>
           </div>
           <ConnectButton />
         </Container>
