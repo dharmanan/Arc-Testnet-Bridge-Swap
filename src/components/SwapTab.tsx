@@ -163,7 +163,7 @@ export function SwapTab() {
             <Button
               onClick={executeSwap}
               loading={state.isLoading}
-              disabled={state.isLoading || !localInputAmount || parseFloat(localInputAmount) <= 0}
+              disabled={state.isLoading || !localInputAmount || parseFloat(localInputAmount) <= 0 || !state.outputAmount || parseFloat(state.outputAmount) <= 0}
               className="w-full"
             >
               {state.isLoading ? (

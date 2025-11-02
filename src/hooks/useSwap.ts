@@ -121,7 +121,9 @@ export function useSwap() {
 
     try {
       const provider = await getProvider()
-      if (!provider) return
+      if (!provider) {
+        throw new Error('No provider available')
+      }
 
       const router = new ethers.Contract(
         SEPOLIA_CONFIG.UNISWAP_V2_ROUTER,
@@ -134,18 +136,74 @@ export function useSwap() {
         : [SEPOLIA_CONFIG.USDC_ADDRESS, SEPOLIA_CONFIG.WETH_ADDRESS]
 
       const amountIn = state.isEthToUsdc
-        ? ethers.parseEther(inputAmount)  // ETH has 18 decimals
-        : ethers.parseUnits(inputAmount, 6)  // USDC has 6 decimals
+        ? ethers.parseEther(inputAmount)
+        : ethers.parseUnits(inputAmount, 6)
+      
+      console.log('Estimating swap:', {
+        inputAmount,
+        direction: state.isEthToUsdc ? 'ETH->USDC' : 'USDC->ETH',
+        amountIn: amountIn.toString(),
+        path
+      })
       
       const amounts = await router.getAmountsOut(amountIn, path)
       
-      const outputDecimals = state.isEthToUsdc ? 6 : 18  // USDC = 6, ETH = 18
+      if (!amounts || amounts.length < 2 || !amounts[1]) {
+        throw new Error('Invalid router response')
+      }
+      
+      const outputDecimals = state.isEthToUsdc ? 6 : 18
       const outputFormatted = ethers.formatUnits(amounts[1], outputDecimals)
       
-      setState(prev => ({ ...prev, outputAmount: outputFormatted }))
+      console.log('Estimated output:', outputFormatted)
+      
+      if (parseFloat(outputFormatted) <= 0) {
+        throw new Error('Output amount too small')
+      }
+      
+      setState(prev => ({ ...prev, outputAmount: outputFormatted, error: null }))
     } catch (error) {
       console.error('Error estimating output:', error)
-      setState(prev => ({ ...prev, outputAmount: '' }))
+      
+      // Try with fallback RPC if browser provider failed
+      try {
+        console.log('Trying fallback RPC...')
+        const fallbackProvider = new ethers.JsonRpcProvider(SEPOLIA_CONFIG.RPC_ENDPOINT)
+        const router = new ethers.Contract(
+          SEPOLIA_CONFIG.UNISWAP_V2_ROUTER,
+          ROUTER_ABI,
+          fallbackProvider
+        )
+
+        const path = state.isEthToUsdc
+          ? [SEPOLIA_CONFIG.WETH_ADDRESS, SEPOLIA_CONFIG.USDC_ADDRESS]
+          : [SEPOLIA_CONFIG.USDC_ADDRESS, SEPOLIA_CONFIG.WETH_ADDRESS]
+
+        const amountIn = state.isEthToUsdc
+          ? ethers.parseEther(inputAmount)
+          : ethers.parseUnits(inputAmount, 6)
+
+        const amounts = await router.getAmountsOut(amountIn, path)
+        
+        if (amounts && amounts.length >= 2 && amounts[1]) {
+          const outputDecimals = state.isEthToUsdc ? 6 : 18
+          const outputFormatted = ethers.formatUnits(amounts[1], outputDecimals)
+          
+          if (parseFloat(outputFormatted) > 0) {
+            console.log('Fallback RPC success:', outputFormatted)
+            setState(prev => ({ ...prev, outputAmount: outputFormatted, error: null }))
+            return
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback RPC also failed:', fallbackError)
+      }
+      
+      setState(prev => ({ 
+        ...prev, 
+        outputAmount: '', 
+        error: 'Failed to estimate swap output. Please refresh the page and try again.' 
+      }))
     }
   }, [getProvider, state.isEthToUsdc])
 
@@ -195,6 +253,8 @@ export function useSwap() {
       }))
       return
     }
+
+    // Note: outputAmount validation removed because button is now disabled when outputAmount is invalid
 
     setState(prev => ({
       ...prev,
