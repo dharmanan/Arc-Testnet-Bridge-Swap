@@ -19,6 +19,19 @@ export default {
           900: '#0f172a',
           950: '#020617',
         },
+        'arc-dark': {
+          900: '#0D111C',
+          800: '#161B22',
+          700: '#21262D',
+        },
+        'arc-accent': {
+          'primary': '#38BDF8',
+          'secondary': '#F472B6',
+        },
+        'arc-text': {
+          'primary': '#E6EDF3',
+          'secondary': '#8B949E',
+        },
       },
     },
   },

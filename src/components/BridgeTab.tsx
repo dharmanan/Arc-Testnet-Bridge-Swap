@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount, useSwitchChain } from 'wagmi'
 import { Card, Button, Input, Container } from './ui'
 import { useBridgeKit, BridgeToken, SEPOLIA_CHAIN_ID, ARC_CHAIN_ID, CHAIN_TOKENS } from '../hooks/useBridgeKit'
 import { ArrowLeftRight, Loader2, CheckCircle, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react'
 
 export function BridgeTab() {
   const { address, isConnected, chainId } = useAccount()
+  const { switchChain } = useSwitchChain()
   const { state, tokenBalance, isLoadingBalance, balanceError, fetchTokenBalance, bridge, reset } = useBridgeKit()
   
   const [amount, setAmount] = useState('')
@@ -44,6 +45,38 @@ export function BridgeTab() {
     setAmount('')
   }
 
+  // Save transaction to localStorage when bridge succeeds
+  useEffect(() => {
+    if (state.step === 'success' && state.direction && amount) {
+      const transaction = {
+        id: `${Date.now()}`,
+        type: 'bridge',
+        direction: state.direction,
+        amount: amount,
+        fromNetwork: sourceChainName,
+        toNetwork: destinationChainName,
+        timestamp: new Date().toISOString(),
+        sourceTxHash: state.sourceTxHash,
+        receiveTxHash: state.receiveTxHash,
+      };
+
+      const existingTransactions = JSON.parse(localStorage.getItem('bridgeTransactions') || '[]');
+      const isAlreadySaved = existingTransactions.some((t: any) => t.id === transaction.id);
+      if (!isAlreadySaved) {
+        existingTransactions.unshift(transaction);
+        localStorage.setItem('bridgeTransactions', JSON.stringify(existingTransactions.slice(0, 10)));
+      }
+
+      // Switch back to source chain after successful bridge
+      const sourceChainId = state.direction === 'sepolia-to-arc' ? SEPOLIA_CHAIN_ID : ARC_CHAIN_ID;
+      if (chainId !== sourceChainId && switchChain) {
+        setTimeout(() => {
+          switchChain({ chainId: sourceChainId });
+        }, 3000); // Wait 3 seconds for user to see success message
+      }
+    }
+  }, [state.step, state.direction, amount, sourceChainName, destinationChainName, state.sourceTxHash, state.receiveTxHash, chainId, switchChain]);
+
   if (!isConnected) {
     return (
       <Container className="py-12">
@@ -64,7 +97,7 @@ export function BridgeTab() {
 
           <div className="space-y-4">
             {/* Chain Selection */}
-            <div className="bg-dark-700 rounded-lg p-4">
+            <div className="bg-arc-dark-700 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div className="text-center flex-1">
                   <p className="text-xs text-dark-400 mb-1">From</p>
@@ -87,7 +120,7 @@ export function BridgeTab() {
             {/* Token Selection (USDC only) */}
             <div>
               <label className="text-sm font-medium text-dark-300 mb-2 block">Token</label>
-              <div className="px-4 py-3 bg-dark-700 rounded-lg">
+              <div className="px-4 py-3 bg-arc-dark-700 rounded-lg">
                 <span className="font-semibold">USDC</span>
                 <span className="text-sm text-dark-400 ml-2">(USD Coin)</span>
               </div>
@@ -95,7 +128,7 @@ export function BridgeTab() {
 
             {/* Balance Display */}
             {isLoadingBalance ? (
-              <div className="flex items-center justify-center p-3 bg-dark-700 rounded-lg">
+              <div className="flex items-center justify-center p-3 bg-arc-dark-700 rounded-lg">
                 <Loader2 size={16} className="animate-spin mr-2" />
                 <span className="text-sm">Loading balance...</span>
               </div>
@@ -105,7 +138,7 @@ export function BridgeTab() {
                 <span className="text-sm">{balanceError}</span>
               </div>
             ) : (
-              <div className="p-3 bg-dark-700 rounded-lg">
+              <div className="p-3 bg-arc-dark-700 rounded-lg">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs text-dark-400">{sourceChainName} {selectedToken} Balance</p>
                   <button
@@ -241,10 +274,13 @@ export function BridgeTab() {
         </Card>
 
         {/* Info Box */}
-        <div className="mt-6 p-4 bg-dark-800 border border-dark-700 rounded-lg">
-          <p className="text-sm text-dark-400">
-            Bridge USDC bidirectionally between Ethereum Sepolia and Arc Testnet using Circle Bridge Kit.
-          </p>
+        <div className="mt-6 p-4 bg-arc-dark-800 border border-arc-dark-700 rounded-lg">
+          <div className="text-xs text-arc-text-secondary space-y-1">
+            <p><strong>Bridge Process:</strong></p>
+            <p>1. <strong>Approve</strong>: Approve USDC spending for the bridge contract</p>
+            <p>2. <strong>Bridge</strong>: Send USDC to the source chain bridge contract</p>
+            <p>3. <strong>Receive</strong>: Sign to receive USDC on the destination chain</p>
+          </div>
         </div>
       </div>
     </Container>

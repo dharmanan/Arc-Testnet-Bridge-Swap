@@ -118,11 +118,8 @@ export function SwapTab() {
             </div>
 
             {/* Network Info */}
-            <div className="p-3 bg-dark-700 rounded-lg text-sm">
-              <p className="text-dark-400">Network: <span className="text-white font-semibold">Ethereum Sepolia</span></p>
-              <p className="text-dark-400 text-xs mt-1">
-                🔗 Uniswap V2 Router: 0xC532a7...94008
-              </p>
+            <div className="p-3 bg-arc-dark-700 rounded-lg text-sm">
+              <p className="text-arc-text-secondary">Network: <span className="text-white font-semibold">Ethereum Sepolia</span></p>
             </div>
 
             {/* Error Display */}
@@ -180,8 +177,8 @@ export function SwapTab() {
             </Button>
           </div>
 
-          <div className="mt-6 p-4 bg-dark-800 rounded-lg border border-dark-700">
-            <p className="text-xs text-dark-400">
+          <div className="mt-6 p-4 bg-arc-dark-800 rounded-lg border border-arc-dark-700">
+            <p className="text-xs text-arc-text-secondary">
               ℹ️ <strong>Real swap on Sepolia testnet</strong> using Uniswap V2 Protocol. Requires MetaMask connected to Sepolia with ETH or USDC.
             </p>
           </div>
