@@ -1,171 +1,184 @@
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
-import { ethers } from 'ethers'
 import { Card, Button, Input, Container } from './ui'
-import { SUSHISWAP_SEPOLIA } from '../config/networks'
-
-// ERC20 ABI minimal
-const ERC20_ABI = [
-  'function approve(address spender, uint256 amount) external returns (bool)',
-  'function balanceOf(address account) external view returns (uint256)',
-  'function allowance(address owner, address spender) external view returns (uint256)',
-  'function transfer(address to, uint256 amount) external returns (bool)',
-]
+import { useBridgeKit, BridgeToken, SEPOLIA_CHAIN_ID, ARC_CHAIN_ID, CHAIN_TOKENS } from '../hooks/useBridgeKit'
+import { ArrowLeftRight, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 
 export function BridgeTab() {
-  const { address } = useAccount()
+  const { address, isConnected, chainId } = useAccount()
+  const { state, tokenBalance, isLoadingBalance, balanceError, fetchTokenBalance, bridge, reset } = useBridgeKit()
+  
   const [amount, setAmount] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [txHash, setTxHash] = useState<string | null>(null)
-  const [provider, setProvider] = useState<any>(null)
-  const [usdcBalance, setUsdcBalance] = useState('')
+  const [direction, setDirection] = useState<'sepolia-to-arc' | 'arc-to-sepolia'>('sepolia-to-arc')
+  const [selectedToken] = useState<BridgeToken>('USDC')
 
-  // Setup provider
+  const sourceChainId = direction === 'sepolia-to-arc' ? SEPOLIA_CHAIN_ID : ARC_CHAIN_ID
+  const sourceChainName = direction === 'sepolia-to-arc' ? 'Sepolia' : 'Arc Testnet'
+  const destinationChainName = direction === 'sepolia-to-arc' ? 'Arc Testnet' : 'Sepolia'
+
+  // Fetch balance when direction changes or address changes
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).ethereum) {
-      const ethProvider = new ethers.BrowserProvider((window as any).ethereum)
-      setProvider(ethProvider)
+    if (address && isConnected) {
+      fetchTokenBalance(selectedToken, sourceChainId)
     }
-  }, [])
-
-  // Get DAI balance
-  useEffect(() => {
-    if (!address) return
-
-    const getBalance = async () => {
-      try {
-        // Mock balance since DEX might not be available
-        // In production, this would fetch real balance from contract
-        setUsdcBalance('0.00')
-      } catch (error) {
-        console.error('Balance error:', error)
-        setUsdcBalance('0.00')
-      }
-    }
-
-    getBalance()
-    const interval = setInterval(getBalance, 5000)
-    return () => clearInterval(interval)
-  }, [address])
+  }, [address, isConnected, selectedToken, sourceChainId, fetchTokenBalance])
 
   const handleBridge = async () => {
-    if (!address || !provider || !amount) {
-      alert('Lütfen cüzdan bağlantısı ve miktar girin')
+    if (!amount || parseFloat(amount) <= 0) {
+      alert('Please enter a valid amount')
       return
     }
+    await bridge(selectedToken, amount, direction)
+  }
 
-    setIsLoading(true)
-    setTxHash(null)
-    try {
-      await provider.getSigner()
+  const handleSwapDirection = () => {
+    setDirection(direction === 'sepolia-to-arc' ? 'arc-to-sepolia' : 'sepolia-to-arc')
+    setAmount('')
+  }
 
-      // Bridge işlemi başlatıldı
-      console.log('Bridge işlemi başlatıldı:', {
-        amount,
-        address,
-        token: SUSHISWAP_SEPOLIA.USDC,
-      })
-
-      // In a real implementation, you would:
-      // 1. Approve the bridge contract to spend DAI
-      // 2. Call the bridge contract's bridge function
-      // 3. Wait for cross-chain confirmation
-
-      alert('Bridge işlemi simüle edildi. Gerçek implementasyon için Circle SDK gereklidir.')
-      setAmount('')
-    } catch (error) {
-      console.error('Bridge error:', error)
-      alert('Bridge başarısız: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'))
-    } finally {
-      setIsLoading(false)
-    }
+  if (!isConnected) {
+    return (
+      <Container className="py-12">
+        <Card className="text-center">
+          <ArrowLeftRight size={48} className="mx-auto mb-4 text-dark-400" />
+          <h2 className="text-xl font-semibold mb-2">Connect Your Wallet</h2>
+          <p className="text-dark-400">Connect your wallet to bridge USDC between Sepolia and Arc Testnet</p>
+        </Card>
+      </Container>
+    )
   }
 
   return (
     <Container className="py-12">
       <div className="max-w-md mx-auto">
         <Card>
-          <h2 className="text-2xl font-bold mb-6">USDC Bridge</h2>
-          <p className="text-dark-400 text-sm mb-6">
-            Circle Bridge Kit kullanarak USDC'yi Sepolia'dan Arc Testnet'e bridge et
-          </p>
+          <h2 className="text-2xl font-bold mb-6">Bridge USDC</h2>
 
           <div className="space-y-4">
-            {/* From Chain */}
-            <div>
-              <label className="text-sm font-medium text-dark-300 block mb-2">Kaynak</label>
-              <div className="px-4 py-3 bg-dark-700 rounded-lg border border-dark-600">
-                Sepolia (11155111)
-              </div>
-            </div>
-
-            {/* To Chain */}
-            <div>
-              <label className="text-sm font-medium text-dark-300 block mb-2">Hedef</label>
-              <div className="px-4 py-3 bg-dark-700 rounded-lg border border-dark-600">
-                Arc Testnet (42124)
-              </div>
-            </div>
-
-            {/* Amount */}
-            <div>
-              <div className="flex justify-between mb-2">
-                <label className="text-sm font-medium text-dark-300">Miktar</label>
-                <span className="text-xs text-dark-400">
-                  Bakiye: {usdcBalance ? parseFloat(usdcBalance).toFixed(2) : '--'} USDC
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  placeholder="0.0"
-                  value={amount}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
-                  className="flex-1"
-                />
-                <button className="px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg font-semibold transition-colors">
-                  USDC
+            {/* Chain Selection */}
+            <div className="bg-dark-700 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-center flex-1">
+                  <p className="text-xs text-dark-400 mb-1">From</p>
+                  <p className="font-semibold">{sourceChainName}</p>
+                </div>
+                <button
+                  onClick={handleSwapDirection}
+                  className="mx-4 p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  disabled={state.isLoading}
+                >
+                  <ArrowLeftRight size={18} />
                 </button>
+                <div className="text-center flex-1">
+                  <p className="text-xs text-dark-400 mb-1">To</p>
+                  <p className="font-semibold">{destinationChainName}</p>
+                </div>
               </div>
             </div>
 
-            {/* Bridge Info */}
-            <div className="bg-dark-700 border border-dark-600 rounded-lg p-3 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-dark-400">Bridge Ücreti</span>
-                <span>0 USDC</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-dark-400">Tahmini Süre</span>
-                <span>5-10 dakika</span>
+            {/* Token Selection (USDC only) */}
+            <div>
+              <label className="text-sm font-medium text-dark-300 mb-2 block">Token</label>
+              <div className="px-4 py-3 bg-dark-700 rounded-lg">
+                <span className="font-semibold">USDC</span>
+                <span className="text-sm text-dark-400 ml-2">(USD Coin)</span>
               </div>
             </div>
+
+            {/* Balance Display */}
+            {isLoadingBalance ? (
+              <div className="flex items-center justify-center p-3 bg-dark-700 rounded-lg">
+                <Loader2 size={16} className="animate-spin mr-2" />
+                <span className="text-sm">Loading balance...</span>
+              </div>
+            ) : balanceError ? (
+              <div className="flex items-center p-3 bg-red-500/20 rounded-lg text-red-300">
+                <AlertCircle size={16} className="mr-2" />
+                <span className="text-sm">{balanceError}</span>
+              </div>
+            ) : (
+              <div className="p-3 bg-dark-700 rounded-lg">
+                <p className="text-xs text-dark-400 mb-1">{sourceChainName} {selectedToken} Balance</p>
+                <p className="text-lg font-semibold">{tokenBalance} {selectedToken}</p>
+              </div>
+            )}
+
+            {/* Amount Input */}
+            <div>
+              <label className="text-sm font-medium text-dark-300 mb-2 block">Amount</label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                disabled={state.isLoading}
+                className="w-full"
+              />
+              {parseFloat(amount) > parseFloat(tokenBalance) && (
+                <p className="text-xs text-red-400 mt-1">Amount exceeds balance</p>
+              )}
+            </div>
+
+            {/* Status Messages */}
+            {state.error && (
+              <div className="flex items-start p-3 bg-red-500/20 rounded-lg text-red-300">
+                <AlertCircle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
+                <span className="text-sm">{state.error}</span>
+              </div>
+            )}
+
+            {state.step === 'success' && (
+              <div className="flex items-start p-3 bg-green-500/20 rounded-lg text-green-300">
+                <CheckCircle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-semibold">Bridge Successful!</p>
+                  {state.sourceTxHash && (
+                    <p className="text-xs mt-1">Source Tx: {state.sourceTxHash.slice(0, 10)}...</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Bridge Button */}
             <Button
               onClick={handleBridge}
-              loading={isLoading}
-              disabled={!address || !amount || isLoading}
-              className="w-full mt-6"
+              disabled={state.isLoading || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > parseFloat(tokenBalance)}
+              loading={state.isLoading}
+              className="w-full"
             >
-              {!address ? 'Cüzdan Bağla' : isLoading ? 'Bridge yapılıyor...' : 'USDC Bridge Et'}
+              {state.isLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  {state.step === 'switching-network' ? 'Switching Network...' : 'Bridging...'}
+                </>
+              ) : state.step === 'success' ? (
+                'Bridge Complete'
+              ) : (
+                `Bridge ${amount || '0'} ${selectedToken}`
+              )}
             </Button>
 
-            {/* Tx Hash */}
-            {txHash && (
-              <div className="bg-green-900 border border-green-700 rounded-lg p-3">
-                <a
-                  href={`https://sepolia.etherscan.io/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-green-400 hover:text-green-300 text-sm break-all"
-                >
-                  İşlemi Görüntüle →
-                </a>
-              </div>
+            {/* Reset Button (after success) */}
+            {state.step === 'success' && (
+              <button
+                onClick={() => {
+                  reset()
+                  setAmount('')
+                }}
+                className="w-full px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg transition-colors text-sm"
+              >
+                Bridge Again
+              </button>
             )}
           </div>
         </Card>
+
+        {/* Info Box */}
+        <div className="mt-6 p-4 bg-dark-800 border border-dark-700 rounded-lg">
+          <p className="text-sm text-dark-400">
+            Bridge USDC bidirectionally between Ethereum Sepolia and Arc Testnet using Circle Bridge Kit.
+          </p>
+        </div>
       </div>
     </Container>
   )

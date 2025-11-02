@@ -1,194 +1,169 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
-import { ethers } from 'ethers'
 import { Card, Button, Input, Container } from './ui'
-import { SUSHISWAP_SEPOLIA } from '../config/networks'
-import { ArrowDownUp } from 'lucide-react'
-
-// Uniswap V2 Router ABI (minimal)
-const ROUTER_ABI = [
-  'function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)',
-  'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
-  'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
-]
-
-// ERC20 ABI minimal
-const ERC20_ABI = [
-  'function approve(address spender, uint256 amount) external returns (bool)',
-  'function balanceOf(address account) external view returns (uint256)',
-  'function allowance(address owner, address spender) external view returns (uint256)',
-]
+import { ArrowDownUp, Loader2, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react'
+import { useSwap } from '../hooks/useSwap'
 
 export function SwapTab() {
-  const { address } = useAccount()
-  const [amountIn, setAmountIn] = useState('')
-  const [estimatedOut, setEstimatedOut] = useState<string>('')
-  const [isReversed, setIsReversed] = useState(false)
-  const [slippage, setSlippage] = useState('0.5')
-  const [isLoading, setIsLoading] = useState(false)
-  const [provider, setProvider] = useState<any>(null)
+  const { isConnected } = useAccount()
+  const { state, setInputAmount, toggleDirection, executeSwap } = useSwap()
+  const [localInputAmount, setLocalInputAmount] = useState('')
 
-  // Setup provider
+  // Update parent state when user changes input
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).ethereum) {
-      const ethProvider = new ethers.BrowserProvider((window as any).ethereum)
-      setProvider(ethProvider)
-    }
-  }, [])
+    setInputAmount(localInputAmount)
+  }, [localInputAmount, setInputAmount])
 
-  const tokenIn = isReversed ? SUSHISWAP_SEPOLIA.USDC : SUSHISWAP_SEPOLIA.WETH
-  const tokenOut = isReversed ? SUSHISWAP_SEPOLIA.WETH : SUSHISWAP_SEPOLIA.USDC
-  const tokenInSymbol = isReversed ? 'DAI' : 'ETH'
-  const tokenOutSymbol = isReversed ? 'ETH' : 'DAI'
-  const decimalsIn = isReversed ? 18 : 18
-  const decimalsOut = isReversed ? 18 : 18
-
-  // Estimate swap output
-  const estimateSwap = async () => {
-    if (!amountIn || parseFloat(amountIn) <= 0) {
-      setEstimatedOut('')
-      return
-    }
-
-    try {
-      // Mock estimation - 1 ETH ≈ 2500 DAI
-      const ethAmount = parseFloat(amountIn)
-      let estimatedAmount: string
-      
-      if (isReversed) {
-        // DAI → ETH: 1 DAI ≈ 0.0004 ETH
-        estimatedAmount = (ethAmount * 0.0004).toFixed(6)
-      } else {
-        // ETH → DAI: 1 ETH ≈ 2500 DAI
-        estimatedAmount = (ethAmount * 2500).toFixed(2)
-      }
-      
-      setEstimatedOut(estimatedAmount)
-    } catch (error) {
-      console.error('Estimation error:', error)
-      setEstimatedOut('')
-    }
-  }
-
-  // Re-estimate when inputs change
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      estimateSwap()
-    }, 500)
-
-    return () => clearTimeout(timer)
-  }, [amountIn, isReversed])
-
-  const handleSwap = async () => {
-    if (!address || !amountIn || !estimatedOut) {
-      alert('Missing swap details')
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      // Mock swap - simulate 2 second transaction
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      alert(`✅ Swap Successful!\n\nFrom: ${amountIn} ${tokenInSymbol}\nTo: ${estimatedOut} ${tokenOutSymbol}\n\nNote: Demo mode - no real transaction`)
-      
-      setAmountIn('')
-      setEstimatedOut('')
-    } catch (error) {
-      console.error('Swap error:', error)
-      alert('❌ Swap failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
-    } finally {
-      setIsLoading(false)
-    }
+  if (!isConnected) {
+    return (
+      <Container className="py-12">
+        <Card className="text-center">
+          <ArrowDownUp size={48} className="mx-auto mb-4 text-dark-400" />
+          <h2 className="text-xl font-semibold mb-2">Connect Your Wallet</h2>
+          <p className="text-dark-400">Connect your wallet to swap ETH for USDC on Sepolia</p>
+        </Card>
+      </Container>
+    )
   }
 
   return (
     <Container className="py-12">
       <div className="max-w-md mx-auto">
         <Card>
-          <h2 className="text-2xl font-bold mb-6">Swap Tokens</h2>
+          <h2 className="text-2xl font-bold mb-2">ETH ↔ USDC Swap</h2>
+          <p className="text-dark-400 text-sm mb-6">Swap on Sepolia using Uniswap V2 Protocol</p>
 
           <div className="space-y-4">
-            {/* Amount In */}
+            {/* Direction selector */}
             <div>
-              <div className="flex justify-between mb-2">
-                <label className="text-sm font-medium text-dark-300">From</label>
-                <span className="text-xs text-dark-400">Balance: {isReversed ? '1250.00' : '0.50'}</span>
-              </div>
+              <label className="text-sm font-medium text-dark-300 mb-2 block">Swap Direction</label>
+              <select
+                value={state.isEthToUsdc ? 'eth-usdc' : 'usdc-eth'}
+                onChange={(e) => toggleDirection()}
+                className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white"
+              >
+                <option value="eth-usdc">ETH → USDC</option>
+                <option value="usdc-eth">USDC → ETH</option>
+              </select>
+            </div>
+
+            {/* Input Amount */}
+            <div>
+              <label className="text-sm font-medium text-dark-300 mb-2 block">From</label>
               <div className="flex gap-2">
                 <Input
                   type="number"
                   placeholder="0.0"
-                  value={amountIn}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmountIn(e.target.value)}
+                  value={localInputAmount}
+                  onChange={(e) => setLocalInputAmount(e.target.value)}
+                  disabled={state.isLoading}
                   className="flex-1"
                 />
                 <button className="px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg font-semibold transition-colors">
-                  {tokenInSymbol}
+                  {state.isEthToUsdc ? 'ETH' : 'USDC'}
                 </button>
               </div>
             </div>
 
-            {/* Swap Button */}
+            {/* Swap Arrow */}
             <div className="flex justify-center">
               <button
-                onClick={() => setIsReversed(!isReversed)}
+                onClick={toggleDirection}
                 className="p-2 bg-dark-700 hover:bg-dark-600 rounded-lg transition-colors"
+                disabled={state.isLoading}
               >
                 <ArrowDownUp size={20} />
               </button>
             </div>
 
-            {/* Amount Out */}
+            {/* Output Amount */}
             <div>
-              <div className="flex justify-between mb-2">
-                <label className="text-sm font-medium text-dark-300">To</label>
-                <span className="text-xs text-dark-400">Balance: {isReversed ? '0.50' : '1250.00'}</span>
-              </div>
+              <label className="text-sm font-medium text-dark-300 mb-2 block">To (Estimated)</label>
               <div className="flex gap-2">
                 <Input
-                  type="number"
-                  placeholder="0.0"
-                  value={estimatedOut}
+                  type="text"
+                  value={state.outputAmount}
                   disabled
-                  className="flex-1"
+                  className="flex-1 opacity-50"
                 />
                 <button className="px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg font-semibold transition-colors">
-                  {tokenOutSymbol}
+                  {state.isEthToUsdc ? 'USDC' : 'ETH'}
                 </button>
               </div>
-              {estimatedOut && (
+              {state.outputAmount && (
                 <p className="text-xs text-dark-400 mt-1">
-                  Price: 1 {tokenInSymbol} = {(parseFloat(estimatedOut) / parseFloat(amountIn)).toFixed(6)} {tokenOutSymbol}
+                  Rate: 1 {state.isEthToUsdc ? 'ETH' : 'USDC'} = {state.outputAmount && localInputAmount ? (parseFloat(state.outputAmount) / parseFloat(localInputAmount)).toFixed(6) : '~'} {state.isEthToUsdc ? 'USDC' : 'ETH'}
                 </p>
               )}
             </div>
 
-            {/* Slippage */}
-            <div>
-              <label className="text-sm font-medium text-dark-300 block mb-2">
-                Slippage Tolerance: {slippage}%
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="5"
-                step="0.1"
-                value={slippage}
-                onChange={(e) => setSlippage(e.target.value)}
-                className="w-full"
-              />
+            {/* Network Info */}
+            <div className="p-3 bg-dark-700 rounded-lg text-sm">
+              <p className="text-dark-400">Network: <span className="text-white font-semibold">Ethereum Sepolia</span></p>
+              <p className="text-dark-400 text-xs mt-1">
+                🔗 Uniswap V2 Router: 0xC532a7...94008
+              </p>
             </div>
+
+            {/* Error Display */}
+            {state.error && (
+              <div className="flex items-start p-3 bg-red-500/20 rounded-lg text-red-300">
+                <AlertCircle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
+                <span className="text-sm">{state.error}</span>
+              </div>
+            )}
+
+            {/* Success Display */}
+            {state.status && state.status.includes('successful') && (
+              <div className="flex items-start p-3 bg-green-500/20 rounded-lg text-green-300">
+                <CheckCircle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-semibold">Swap Successful!</p>
+                  {state.txHash && (
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${state.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs mt-1 flex items-center gap-1 hover:underline"
+                    >
+                      View on Etherscan
+                      <ExternalLink size={12} />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Status Display */}
+            {state.status && !state.status.includes('successful') && (
+              <div className="p-3 bg-blue-500/20 rounded-lg text-blue-300 text-sm flex items-center gap-2">
+                <Loader2 size={16} className="animate-spin" />
+                {state.status}
+              </div>
+            )}
 
             {/* Swap Button */}
             <Button
-              onClick={handleSwap}
-              loading={isLoading}
-              disabled={!address || !amountIn || !estimatedOut || isLoading}
-              className="w-full mt-6"
+              onClick={executeSwap}
+              loading={state.isLoading}
+              disabled={state.isLoading || !localInputAmount || parseFloat(localInputAmount) <= 0}
+              className="w-full"
             >
-              {!address ? 'Connect Wallet' : isLoading ? 'Swapping...' : 'Swap'}
+              {state.isLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                `Swap ${localInputAmount || '0'} ${state.isEthToUsdc ? 'ETH' : 'USDC'}`
+              )}
             </Button>
+          </div>
+
+          <div className="mt-6 p-4 bg-dark-800 rounded-lg border border-dark-700">
+            <p className="text-xs text-dark-400">
+              ℹ️ <strong>Real swap on Sepolia testnet</strong> using Uniswap V2 Protocol. Requires MetaMask connected to Sepolia with ETH or USDC.
+            </p>
           </div>
         </Card>
       </div>

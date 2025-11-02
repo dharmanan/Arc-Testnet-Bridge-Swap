@@ -68,7 +68,7 @@ export default function App() {
           <div className="text-center text-dark-400 text-sm">
             <p>Sepolia Testnet • Arc Testnet</p>
             <p className="mt-2">
-              Built with Uniswap V2 & Circle Bridge Kit
+              Built with Uniswap V3 & Circle Bridge Kit
             </p>
           </div>
         </Container>
