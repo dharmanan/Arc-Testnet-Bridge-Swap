@@ -281,14 +281,24 @@ export function useSwap() {
 
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes
 
+      // Calculate minAmountOut directly to avoid stale state issues
+      const amountIn = state.isEthToUsdc
+        ? ethers.parseEther(state.inputAmount)
+        : ethers.parseUnits(state.inputAmount, 6)
+      
+      const amounts = await router.getAmountsOut(amountIn, path)
+      const outputDecimals = state.isEthToUsdc ? 6 : 18
+      const estimatedOutputRaw = ethers.formatUnits(amounts[1], outputDecimals)
+      const estimatedOutput = state.isEthToUsdc
+        ? ethers.parseUnits(estimatedOutputRaw, 6)
+        : ethers.parseEther(estimatedOutputRaw)
+      
+      const minAmountOut = estimatedOutput * BigInt(95) / BigInt(100) // 5% slippage tolerance
+
       let tx
 
       if (state.isEthToUsdc) {
         setState(prev => ({ ...prev, status: 'Swapping ETH for USDC...' }))
-        
-        const amountIn = ethers.parseEther(state.inputAmount)
-        const estimatedOutput = ethers.parseUnits(state.outputAmount, 6)
-        const minAmountOut = estimatedOutput * BigInt(95) / BigInt(100) // 5% slippage tolerance
         
         tx = await router.swapExactETHForTokens(
           minAmountOut,
@@ -310,7 +320,6 @@ export function useSwap() {
           address,
           SEPOLIA_CONFIG.UNISWAP_V2_ROUTER
         )
-        const amountIn = ethers.parseUnits(state.inputAmount, 6)
 
         if (allowance < amountIn) {
           const approveTx = await usdcContract.approve(
@@ -321,9 +330,6 @@ export function useSwap() {
         }
 
         setState(prev => ({ ...prev, status: 'Swapping USDC for ETH...' }))
-        
-        const estimatedOutput = ethers.parseEther(state.outputAmount)
-        const minAmountOut = estimatedOutput * BigInt(95) / BigInt(100) // 5% slippage tolerance
         
         tx = await router.swapExactTokensForETH(
           amountIn,
