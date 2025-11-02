@@ -12,8 +12,8 @@
 
 ```bash
 # Clone repository
-git clone <repo-url>
-cd arc-sepolia-dex-bridge
+git clone https://github.com/dharmanan/Arc-Testnet-Bridge-Swap.git
+cd Arc-Testnet-Bridge-Swap
 
 # Install dependencies
 npm install --legacy-peer-deps
@@ -27,7 +27,7 @@ cp .env.example .env.local
 
 ```bash
 npm run dev
-# App will be available at http://localhost:5173
+# App will be available at http://localhost:3000
 ```
 
 ### 4. Build for Production
@@ -43,14 +43,16 @@ npm run preview
 - **ETH ↔ USDC Swapping** on Sepolia testnet
 - Real-time price estimation via Uniswap V2
 - Adjustable slippage tolerance (0.1% - 5%)
+- **Rate limiting**: 0.1 ETH max per wallet per 24 hours (ETH → USDC only)
 - Direct wallet integration with MetaMask
 - Transaction confirmation and feedback
 
 ### Bridge Tab
-- **Bridge USDC** from Sepolia to Arc Testnet
-- Circle Bridge Kit integration ready
-- Balance display
-- Transaction tracking
+- **Bridge USDC** bidirectionally between Sepolia and Arc Testnet
+- Circle Bridge Kit full integration
+- Real cross-chain transactions
+- Balance display and validation
+- Transaction tracking with dual explorer links
 
 ### Dashboard Tab
 - **Wallet Info** - Connected address and network
@@ -60,9 +62,9 @@ npm run preview
 ## 🔧 Key Addresses (Sepolia Testnet)
 
 ```
-Uniswap V2 Router:  0x68b3465833fb72B5A828cCEEAa5BE01d33e3B3d8
+Uniswap V2 Router:  0xC532a74256D3Db42D0Bf7a0400fEFDbad7694008
 Uniswap Factory:    0x1F98431c8aD98523631AE4a59f267346ea3113F
-WETH:               0xfFf9976782d46CC05630D06953f7751f7DA666DC
+WETH:               0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9
 USDC:               0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
 ```
 

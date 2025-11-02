@@ -14,16 +14,17 @@
 - ✅ Real-time price estimation via `getAmountsOut`
 - ✅ ETH ↔ USDC swapping logic
 - ✅ Slippage tolerance (0.1% - 5%)
+- ✅ **Rate limiting**: 0.1 ETH max per wallet per 24 hours (ETH → USDC only)
 - ✅ Gas estimation and transaction tracking
 - ✅ ERC20 approval handling for token swaps
 - ✅ Full error handling and user feedback
 
 ### Bridge Functionality
-- ✅ Bridge tab UI with status display
-- ✅ USDC balance tracking
-- ✅ Bridge contract interaction setup
-- ✅ Circle Bridge Kit integration ready
+- ✅ **Real Circle Bridge Kit integration** (completed)
+- ✅ Bidirectional USDC bridging (Sepolia ↔ Arc Testnet)
 - ✅ Cross-chain transaction tracking
+- ✅ Dual explorer links (Etherscan + ArcScan)
+- ✅ Balance display and validation
 
 ### Dashboard
 - ✅ Wallet connection display
@@ -75,9 +76,9 @@ Dev Dependencies:   10 major packages
 ## 🔗 Smart Contracts Used
 
 ### Sepolia Testnet
-- **Uniswap V2 Router**: `0x68b3465833fb72B5A828cCEEAa5BE01d33e3B3d8`
+- **Uniswap V2 Router**: `0xC532a74256D3Db42D0Bf7a0400fEFDbad7694008`
 - **Uniswap Factory**: `0x1F98431c8aD98523631AE4a59f267346ea3113F`
-- **WETH**: `0xfFf9976782d46CC05630D06953f7751f7DA666DC`
+- **WETH**: `0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9`
 - **USDC**: `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`
 
 ## 🧪 Testing
@@ -117,10 +118,10 @@ Dev Dependencies:   10 major packages
 
 ## 🚀 Next Steps for Deployment
 
-1. **Circle Bridge Kit Integration**
-   - Set up Circle API credentials
-   - Implement full bridge contract interaction
-   - Add cross-chain confirmation tracking
+1. **Rate Limiting Enhancement**
+   - Add more granular rate limiting options
+   - Backend rate limiting for production
+   - User dashboard for limit tracking
 
 2. **Mainnet Preparation**
    - Audit smart contract interactions
