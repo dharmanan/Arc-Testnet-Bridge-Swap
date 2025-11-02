@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 import { Card, Button, Input, Container } from './ui'
 import { useBridgeKit, BridgeToken, SEPOLIA_CHAIN_ID, ARC_CHAIN_ID, CHAIN_TOKENS } from '../hooks/useBridgeKit'
-import { ArrowLeftRight, Loader2, CheckCircle, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react'
+import { ArrowLeftRight, Loader2, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react'
 
 export function BridgeTab() {
   const { address, isConnected, chainId } = useAccount()
@@ -17,19 +17,12 @@ export function BridgeTab() {
   const sourceChainName = direction === 'sepolia-to-arc' ? 'Sepolia' : 'Arc Testnet'
   const destinationChainName = direction === 'sepolia-to-arc' ? 'Arc Testnet' : 'Sepolia'
 
-  // Fetch balance on mount and when direction changes
+  // Fetch balance when direction changes or address changes
   useEffect(() => {
-    if (isConnected && address) {
+    if (address && isConnected) {
       fetchTokenBalance(selectedToken, sourceChainId)
     }
-  }, [isConnected, address, sourceChainId, selectedToken, fetchTokenBalance])
-
-  // Show loading state initially, then balance
-  const displayBalance = isLoadingBalance ? 'Loading...' : 
-                        (tokenBalance && tokenBalance !== '0') ? tokenBalance : '10.50'
-  
-  // Get numeric balance for validation (fallback to 0 if loading)
-  const numericBalance = isLoadingBalance ? 0 : parseFloat(displayBalance) || 0
+  }, [address, isConnected, selectedToken, sourceChainId, fetchTokenBalance])
 
   const handleBridge = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -106,18 +99,8 @@ export function BridgeTab() {
               </div>
             ) : (
               <div className="p-3 bg-dark-700 rounded-lg">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs text-dark-400">{sourceChainName} {selectedToken} Balance</p>
-                  <button
-                    onClick={() => fetchTokenBalance(selectedToken, sourceChainId)}
-                    disabled={isLoadingBalance}
-                    className="text-dark-400 hover:text-white transition-colors disabled:opacity-50"
-                    title="Refresh balance"
-                  >
-                    <RefreshCw size={14} className={isLoadingBalance ? 'animate-spin' : ''} />
-                  </button>
-                </div>
-                <p className="text-lg font-semibold">{displayBalance} {selectedToken}</p>
+                <p className="text-xs text-dark-400 mb-1">{sourceChainName} {selectedToken} Balance</p>
+                <p className="text-lg font-semibold">{tokenBalance} {selectedToken}</p>
               </div>
             )}
 
@@ -132,7 +115,7 @@ export function BridgeTab() {
                 disabled={state.isLoading}
                 className="w-full"
               />
-              {parseFloat(amount) > numericBalance && (
+              {parseFloat(amount) > parseFloat(tokenBalance) && (
                 <p className="text-xs text-red-400 mt-1">Amount exceeds balance</p>
               )}
             </div>
@@ -150,10 +133,10 @@ export function BridgeTab() {
                 <Loader2 size={16} className="mr-2 mt-0.5 flex-shrink-0 animate-spin" />
                 <div className="text-sm">
                   <p className="font-semibold">
-                    {state.step === 'switching-network' && 'Switching network...'}
-                    {state.step === 'approving' && 'Processing transaction...'}
-                    {state.step === 'signing-bridge' && 'Confirming transaction...'}
-                    {state.step === 'waiting-receive-message' && 'Completing bridge...'}
+                    {state.step === 'switching-network' && 'Switching to source network...'}
+                    {state.step === 'approving' && 'Approving USDC spend...'}
+                    {state.step === 'signing-bridge' && 'Signing bridge transaction...'}
+                    {state.step === 'waiting-receive-message' && 'Waiting for receive confirmation...'}
                     {!['switching-network', 'approving', 'signing-bridge', 'waiting-receive-message'].includes(state.step) && 'Processing...'}
                   </p>
                 </div>
@@ -209,7 +192,7 @@ export function BridgeTab() {
             {/* Bridge Button */}
             <Button
               onClick={handleBridge}
-              disabled={state.isLoading || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > numericBalance}
+              disabled={state.isLoading || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > parseFloat(tokenBalance)}
               loading={state.isLoading}
               className="w-full"
             >
