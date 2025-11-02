@@ -1,10 +1,13 @@
-import { useAccount, useBalance } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { Card, Container } from './ui'
 import { Wallet, TrendingUp } from 'lucide-react'
 
 export function DashboardTab() {
   const { address, isConnected } = useAccount()
-  const { data: ethBalance } = useBalance({ address })
+  
+  // Mock balances for demo
+  const mockEthBalance = '0.50'
+  const mockDaiBalance = '1250.00'
 
   if (!isConnected) {
     return (
@@ -51,15 +54,15 @@ export function DashboardTab() {
                 <p className="text-sm text-dark-400">Ethereum</p>
               </div>
               <span className="text-lg font-semibold">
-                {ethBalance?.formatted || '0'} ETH
+                {mockEthBalance} ETH
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-dark-700 rounded-lg">
               <div>
-                <p className="font-semibold">USDC</p>
-                <p className="text-sm text-dark-400">USD Coin</p>
+                <p className="font-semibold">DAI</p>
+                <p className="text-sm text-dark-400">Dai Stablecoin</p>
               </div>
-              <span className="text-lg font-semibold">0 USDC</span>
+              <span className="text-lg font-semibold">{mockDaiBalance} DAI</span>
             </div>
           </div>
         </Card>

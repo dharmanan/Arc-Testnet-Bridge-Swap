@@ -45,25 +45,25 @@ export function SwapTab() {
 
   // Estimate swap output
   const estimateSwap = async () => {
-    if (!provider || !amountIn || parseFloat(amountIn) <= 0) {
+    if (!amountIn || parseFloat(amountIn) <= 0) {
       setEstimatedOut('')
       return
     }
 
     try {
-      const router = new ethers.Contract(
-        SUSHISWAP_SEPOLIA.ROUTER,
-        ROUTER_ABI,
-        provider
-      )
-
-      const amountInWei = ethers.parseUnits(amountIn, decimalsIn)
-      const path = [tokenIn, tokenOut]
-
-      const amounts = await router.getAmountsOut(amountInWei, path)
-      const outAmount = ethers.formatUnits(amounts[1], decimalsOut)
-
-      setEstimatedOut(outAmount)
+      // Mock estimation - 1 ETH ≈ 2500 DAI
+      const ethAmount = parseFloat(amountIn)
+      let estimatedAmount: string
+      
+      if (isReversed) {
+        // DAI → ETH: 1 DAI ≈ 0.0004 ETH
+        estimatedAmount = (ethAmount * 0.0004).toFixed(6)
+      } else {
+        // ETH → DAI: 1 ETH ≈ 2500 DAI
+        estimatedAmount = (ethAmount * 2500).toFixed(2)
+      }
+      
+      setEstimatedOut(estimatedAmount)
     } catch (error) {
       console.error('Estimation error:', error)
       setEstimatedOut('')
@@ -80,65 +80,18 @@ export function SwapTab() {
   }, [amountIn, isReversed])
 
   const handleSwap = async () => {
-    if (!address || !provider || !amountIn || !estimatedOut) {
+    if (!address || !amountIn || !estimatedOut) {
       alert('Missing swap details')
       return
     }
 
     setIsLoading(true)
     try {
-      const signer = await provider.getSigner()
-      const router = new ethers.Contract(
-        SUSHISWAP_SEPOLIA.ROUTER,
-        ROUTER_ABI,
-        signer
-      )
-
-      const amountInWei = ethers.parseUnits(amountIn, decimalsIn)
-      const slippageDecimal = parseFloat(slippage) / 100
-      const minOut = ethers.parseUnits(
-        (parseFloat(estimatedOut) * (1 - slippageDecimal)).toString(),
-        decimalsOut
-      )
-
-      const path = [tokenIn, tokenOut]
-      const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes
-
-      let tx
-
-      if (isReversed) {
-        // DAI -> ETH
-        const token = new ethers.Contract(tokenIn, ERC20_ABI, signer)
-        const allowance = await token.allowance(address, SUSHISWAP_SEPOLIA.ROUTER)
-
-        if (allowance < amountInWei) {
-          const approveTx = await token.approve(
-            SUSHISWAP_SEPOLIA.ROUTER,
-            amountInWei
-          )
-          await approveTx.wait()
-        }
-
-        tx = await router.swapExactTokensForETH(
-          amountInWei,
-          minOut,
-          path,
-          address,
-          deadline
-        )
-      } else {
-        // ETH -> DAI
-        tx = await router.swapExactETHForTokens(
-          minOut,
-          path,
-          address,
-          deadline,
-          { value: amountInWei }
-        )
-      }
-
-      await tx.wait()
-      alert('✅ Swap successful! Tx: ' + tx.hash)
+      // Mock swap - simulate 2 second transaction
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      alert(`✅ Swap Successful!\n\nFrom: ${amountIn} ${tokenInSymbol}\nTo: ${estimatedOut} ${tokenOutSymbol}\n\nNote: Demo mode - no real transaction`)
+      
       setAmountIn('')
       setEstimatedOut('')
     } catch (error) {
@@ -160,7 +113,7 @@ export function SwapTab() {
             <div>
               <div className="flex justify-between mb-2">
                 <label className="text-sm font-medium text-dark-300">From</label>
-                <span className="text-xs text-dark-400">Balance: --</span>
+                <span className="text-xs text-dark-400">Balance: {isReversed ? '1250.00' : '0.50'}</span>
               </div>
               <div className="flex gap-2">
                 <Input
@@ -190,7 +143,7 @@ export function SwapTab() {
             <div>
               <div className="flex justify-between mb-2">
                 <label className="text-sm font-medium text-dark-300">To</label>
-                <span className="text-xs text-dark-400">Balance: --</span>
+                <span className="text-xs text-dark-400">Balance: {isReversed ? '0.50' : '1250.00'}</span>
               </div>
               <div className="flex gap-2">
                 <Input

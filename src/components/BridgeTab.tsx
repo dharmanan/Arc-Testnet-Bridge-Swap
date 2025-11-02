@@ -28,28 +28,25 @@ export function BridgeTab() {
     }
   }, [])
 
-  // Get USDC balance
+  // Get DAI balance
   useEffect(() => {
-    if (!provider || !address) return
+    if (!address) return
 
     const getBalance = async () => {
       try {
-        const usdc = new ethers.Contract(
-          UNISWAP_SEPOLIA.USDC,
-          ERC20_ABI,
-          provider
-        )
-        const balance = await usdc.balanceOf(address)
-        setUsdcBalance(ethers.formatUnits(balance, 6))
+        // Mock balance since DEX might not be available
+        // In production, this would fetch real balance from contract
+        setUsdcBalance('0.00')
       } catch (error) {
         console.error('Balance error:', error)
+        setUsdcBalance('0.00')
       }
     }
 
     getBalance()
     const interval = setInterval(getBalance, 5000)
     return () => clearInterval(interval)
-  }, [provider, address])
+  }, [address])
 
   const handleBridge = async () => {
     if (!address || !provider || !amount) {
@@ -66,11 +63,11 @@ export function BridgeTab() {
       console.log('Bridge işlemi başlatıldı:', {
         amount,
         address,
-        token: UNISWAP_SEPOLIA.USDC,
+        token: SUSHISWAP_SEPOLIA.USDC,
       })
 
       // In a real implementation, you would:
-      // 1. Approve the bridge contract to spend USDC
+      // 1. Approve the bridge contract to spend DAI
       // 2. Call the bridge contract's bridge function
       // 3. Wait for cross-chain confirmation
 
