@@ -34,6 +34,8 @@ export interface SwapState {
   ethBalance: string | null
   usdcBalance: string | null
   isLoadingBalance: boolean
+  ethSwapLimitReached: boolean
+  ethSwapUsedToday: string
 }
 
 export function useSwap() {
@@ -51,6 +53,8 @@ export function useSwap() {
     ethBalance: null,
     usdcBalance: null,
     isLoadingBalance: false,
+    ethSwapLimitReached: false,
+    ethSwapUsedToday: '0',
   })
 
     // Get provider - using ethers v6
@@ -105,12 +109,54 @@ export function useSwap() {
     }
   }, [address, getProvider])
 
-  // Fetch balances when address or chain changes
-  useEffect(() => {
-    if (address && chainId === SEPOLIA_CONFIG.chainId) {
-      fetchBalances()
+  // Rate limiting for ETH to USDC swaps (0.1 ETH per 24 hours)
+  const checkEthSwapLimit = useCallback(() => {
+    if (!address) return
+
+    const now = Date.now()
+    const oneDay = 24 * 60 * 60 * 1000
+    const key = `eth_swaps_${address}`
+
+    try {
+      const stored = localStorage.getItem(key)
+      const swapHistory = stored ? JSON.parse(stored) : []
+
+      // Filter swaps from last 24 hours
+      const recentSwaps = swapHistory.filter((swap: any) => 
+        now - swap.timestamp < oneDay
+      )
+
+      // Calculate total ETH used in last 24 hours
+      const totalEthUsed = recentSwaps.reduce((sum: number, swap: any) => 
+        sum + parseFloat(swap.amount), 0
+      )
+
+      const limitReached = totalEthUsed >= 0.1
+
+      setState(prev => ({
+        ...prev,
+        ethSwapLimitReached: limitReached,
+        ethSwapUsedToday: totalEthUsed.toFixed(4),
+      }))
+
+      // Update localStorage with filtered history
+      localStorage.setItem(key, JSON.stringify(recentSwaps))
+    } catch (error) {
+      console.error('Error checking ETH swap limit:', error)
+      setState(prev => ({
+        ...prev,
+        ethSwapLimitReached: false,
+        ethSwapUsedToday: '0',
+      }))
     }
-  }, [address, chainId, fetchBalances])
+  }, [address])
+
+  // Check limit when address changes
+  useEffect(() => {
+    if (address) {
+      checkEthSwapLimit()
+    }
+  }, [address, checkEthSwapLimit])
 
   // Estimate output amount
   const estimateOutput = useCallback(async (inputAmount: string) => {
@@ -254,6 +300,21 @@ export function useSwap() {
       return
     }
 
+    // Check ETH swap limit for ETH to USDC swaps
+    if (state.isEthToUsdc) {
+      const requestedAmount = parseFloat(state.inputAmount)
+      const currentUsed = parseFloat(state.ethSwapUsedToday)
+      
+      if (state.ethSwapLimitReached || (currentUsed + requestedAmount) > 0.1) {
+        setState(prev => ({
+          ...prev,
+          error: `Daily ETH swap limit exceeded. Used: ${state.ethSwapUsedToday} ETH, Limit: 0.1 ETH per 24 hours.`,
+          status: null,
+        }))
+        return
+      }
+    }
+
     // Note: outputAmount validation removed because button is now disabled when outputAmount is invalid
 
     setState(prev => ({
@@ -347,6 +408,28 @@ export function useSwap() {
       }))
 
       await tx.wait()
+
+      // Record successful ETH to USDC swap for rate limiting
+      if (state.isEthToUsdc && address) {
+        const key = `eth_swaps_${address}`
+        try {
+          const stored = localStorage.getItem(key)
+          const swapHistory = stored ? JSON.parse(stored) : []
+          
+          swapHistory.push({
+            timestamp: Date.now(),
+            amount: state.inputAmount,
+            txHash: tx.hash
+          })
+          
+          localStorage.setItem(key, JSON.stringify(swapHistory))
+          
+          // Update limit status
+          checkEthSwapLimit()
+        } catch (error) {
+          console.error('Error recording swap history:', error)
+        }
+      }
 
       setState(prev => ({
         ...prev,

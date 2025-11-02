@@ -120,6 +120,13 @@ export function SwapTab() {
             {/* Network Info */}
             <div className="p-3 bg-arc-dark-700 rounded-lg text-sm">
               <p className="text-arc-text-secondary">Network: <span className="text-white font-semibold">Ethereum Sepolia</span></p>
+              {state.isEthToUsdc && (
+                <p className="text-arc-text-secondary mt-1">
+                  Daily Limit: <span className={state.ethSwapLimitReached ? 'text-red-400' : 'text-green-400'}>
+                    {state.ethSwapUsedToday}/0.1 ETH
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* Error Display */}
@@ -163,7 +170,14 @@ export function SwapTab() {
             <Button
               onClick={executeSwap}
               loading={state.isLoading}
-              disabled={state.isLoading || !localInputAmount || parseFloat(localInputAmount) <= 0 || !state.outputAmount || parseFloat(state.outputAmount) <= 0}
+              disabled={
+                state.isLoading || 
+                !localInputAmount || 
+                parseFloat(localInputAmount) <= 0 || 
+                !state.outputAmount || 
+                parseFloat(state.outputAmount) <= 0 ||
+                (state.isEthToUsdc && (state.ethSwapLimitReached || (parseFloat(state.ethSwapUsedToday) + parseFloat(localInputAmount || '0')) > 0.1))
+              }
               className="w-full"
             >
               {state.isLoading ? (
