@@ -161,7 +161,20 @@ export default function App() {
         <Container>
           <div className="text-center text-dark-400 text-sm">
             <p>Sepolia Testnet • Arc Testnet</p>
+            <div className="mt-4 p-4 bg-arc-dark-800/50 rounded-lg border border-arc-dark-700">
+              <p className="font-semibold text-arc-accent-primary mb-2">MVP Testnet Application - Educational v1 for ARC Protocol</p>
+              <p>This is a testnet demo application for learning and testing ARC Protocol features. Not for production use. All transactions use test tokens with no real value.</p>
+            </div>
             <div className="flex justify-center gap-4 mt-4">
+              <a
+                href="https://docs.arc.network/arc/concepts/welcome-to-arc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark-400 hover:text-blue-400 transition-colors"
+                title="Arc Protocol Documentation"
+              >
+                <span className="text-xs">ARC Docs</span>
+              </a>
               <a
                 href="https://x.com/KohenEric"
                 target="_blank"
