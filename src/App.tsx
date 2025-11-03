@@ -68,12 +68,37 @@ export default function App() {
         <Container className="py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <img src={arcLogo} alt="Arc Logo" className="w-10 h-10 rounded-lg" />
-            <h1 className="text-xl font-bold" style={{
-              color: '#00ff88',
-              textShadow: '0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 30px #00ff88'
-            }}>Arc Bridge</h1>
+            <a
+              href="https://docs.arc.network/arc/concepts/welcome-to-arc"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:opacity-80 transition-opacity"
+            >
+              <h1 className="text-xl font-bold" style={{
+                color: '#00ff88',
+                textShadow: '0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 30px #00ff88'
+              }}>Arc Bridge</h1>
+            </a>
           </div>
           <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <a
+                href="https://x.com/KohenEric"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark-400 hover:text-blue-400 transition-colors"
+              >
+                <Twitter size={20} />
+              </a>
+              <a
+                href="https://github.com/dharmanan"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark-400 hover:text-blue-400 transition-colors"
+              >
+                <Github size={20} />
+              </a>
+            </div>
             {isConnected && (
               <div className="relative" ref={dropdownRef}>
                 <button
@@ -160,37 +185,19 @@ export default function App() {
       <footer className="border-t border-arc-dark-700 py-8 mt-12">
         <Container>
           <div className="text-center text-dark-400 text-sm">
-            <p>Sepolia Testnet • Arc Testnet</p>
             <div className="mt-4 p-4 bg-arc-dark-800/50 rounded-lg border border-arc-dark-700">
-              <p className="font-semibold text-arc-accent-primary mb-2">MVP Testnet Application - Educational v1 for ARC Protocol</p>
+              <p className="font-semibold text-arc-accent-primary mb-2">
+                MVP Testnet Application - Educational v1 for{' '}
+                <a
+                  href="https://docs.arc.network/arc/concepts/welcome-to-arc"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-arc-accent-primary hover:text-arc-accent-secondary underline transition-colors"
+                >
+                  ARC Protocol
+                </a>
+              </p>
               <p>This is a testnet demo application for learning and testing ARC Protocol features. Not for production use. All transactions use test tokens with no real value.</p>
-            </div>
-            <div className="flex justify-center gap-4 mt-4">
-              <a
-                href="https://docs.arc.network/arc/concepts/welcome-to-arc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-400 hover:text-blue-400 transition-colors"
-                title="Arc Protocol Documentation"
-              >
-                <span className="text-xs">ARC Docs</span>
-              </a>
-              <a
-                href="https://x.com/KohenEric"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-400 hover:text-blue-400 transition-colors"
-              >
-                <Twitter size={20} />
-              </a>
-              <a
-                href="https://github.com/dharmanan"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-400 hover:text-blue-400 transition-colors"
-              >
-                <Github size={20} />
-              </a>
             </div>
           </div>
         </Container>
