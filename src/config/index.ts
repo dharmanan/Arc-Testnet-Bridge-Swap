@@ -1,16 +1,18 @@
+import { ARC_EVM_CHAIN, ARC_EVM_CHAIN_ID, SEPOLIA_EVM_CHAIN, SEPOLIA_EVM_CHAIN_ID } from '../lib/chains'
+
 // Network Configuration
 export const NETWORK_CONFIG = {
   SEPOLIA: {
-    id: 11155111,
-    name: 'Sepolia',
-    rpc: 'https://rpc.sepolia.org',
-    explorer: 'https://sepolia.etherscan.io',
+    id: SEPOLIA_EVM_CHAIN_ID,
+    name: SEPOLIA_EVM_CHAIN.name,
+    rpc: SEPOLIA_EVM_CHAIN.rpcUrls.default.http[0],
+    explorer: SEPOLIA_EVM_CHAIN.blockExplorers?.default?.url || 'https://sepolia.etherscan.io',
   },
   ARC_TESTNET: {
-    id: 42124,
-    name: 'Arc Testnet',
-    rpc: 'https://rpc.testnet.arccoin.io',
-    explorer: 'https://testnet.arcscan.io',
+    id: ARC_EVM_CHAIN_ID,
+    name: ARC_EVM_CHAIN.name,
+    rpc: ARC_EVM_CHAIN.rpcUrls.default.http[0],
+    explorer: ARC_EVM_CHAIN.blockExplorers?.default?.url || 'https://testnet.arcscan.io',
   },
 }
 
@@ -40,16 +42,15 @@ export const TOKEN_CONFIG = {
 // Bridge Configuration
 export const BRIDGE_CONFIG = {
   FROM_CHAIN: {
-    id: 11155111,
-    name: 'Sepolia',
+    id: SEPOLIA_EVM_CHAIN_ID,
+    name: SEPOLIA_EVM_CHAIN.name,
   },
   TO_CHAIN: {
-    id: 42124,
-    name: 'Arc Testnet',
+    id: ARC_EVM_CHAIN_ID,
+    name: ARC_EVM_CHAIN.name,
   },
   // Circle Bridge Kit configuration would go here
-  CIRCLE_APP_ID: process.env.VITE_CIRCLE_APP_ID || '',
-  CIRCLE_API_KEY: process.env.VITE_CIRCLE_API_KEY || '',
+  CIRCLE_APP_ID: import.meta.env.VITE_CIRCLE_APP_ID || '',
 }
 
 // Swap Configuration

@@ -1,15 +1,17 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useAccount, useSwitchChain } from 'wagmi'
+import { useAccount, useSwitchChain, useWalletClient } from 'wagmi'
 import { ethers } from 'ethers'
+import { SEPOLIA_EVM_CHAIN_ID } from '../lib/chains'
 
 // Sepolia Testnet Configuration
 const SEPOLIA_CONFIG = {
-  chainId: 11155111,
+  chainId: SEPOLIA_EVM_CHAIN_ID,
   UNISWAP_V2_ROUTER: '0xC532a74256D3Db42D0Bf7a0400fEFDbad7694008',
   USDC_ADDRESS: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
   WETH_ADDRESS: '0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9',
-  RPC_ENDPOINT: 'https://rpc.sepolia.org',
 }
+
+const SEPOLIA_NETWORK_ERROR = 'Switch your wallet to Ethereum Sepolia to load swap balances and quotes.'
 
 const ROUTER_ABI = [
   'function WETH() external pure returns (address)',
@@ -22,6 +24,11 @@ const ERC20_ABI = [
   'function approve(address spender, uint256 amount) public returns (bool)',
   'function allowance(address owner, address spender) public view returns (uint256)',
 ]
+
+interface Eip1193RequestArguments {
+  method: string
+  params?: unknown[] | Record<string, unknown>
+}
 
 export interface SwapState {
   inputAmount: string
@@ -41,6 +48,7 @@ export interface SwapState {
 export function useSwap() {
   const { address, chainId } = useAccount()
   const { switchChain } = useSwitchChain()
+  const { data: walletClient } = useWalletClient()
 
   const [state, setState] = useState<SwapState>({
     inputAmount: '',
@@ -57,17 +65,65 @@ export function useSwap() {
     ethSwapUsedToday: '0',
   })
 
-    // Get provider - using ethers v6
-  const getProvider = useCallback(async () => {
-    if (typeof window === 'undefined') return null
-    
-    if ((window as any).ethereum) {
-      return new ethers.BrowserProvider((window as any).ethereum)
+  const getWalletProvider = useCallback(async () => {
+    if (!walletClient) {
+      return null
     }
-    
-    // Fallback to public RPC
-    return new ethers.JsonRpcProvider(SEPOLIA_CONFIG.RPC_ENDPOINT)
-  }, [])
+
+    return new ethers.BrowserProvider(
+      {
+        request: async ({ method, params }: Eip1193RequestArguments) => {
+          return walletClient.transport.request({ method, params } as never)
+        },
+      },
+      {
+        chainId: walletClient.chain.id,
+        name: walletClient.chain.name,
+        ensAddress: walletClient.chain.contracts?.ensRegistry?.address,
+      },
+    )
+  }, [walletClient])
+
+  const getReadProvider = useCallback(async () => {
+    const walletProvider = await getWalletProvider()
+
+    if (!walletProvider) {
+      throw new Error('Connected wallet provider is not available. Reconnect your wallet and try again.')
+    }
+
+    if (chainId === SEPOLIA_CONFIG.chainId) {
+      return walletProvider
+    }
+
+    throw new Error(SEPOLIA_NETWORK_ERROR)
+  }, [chainId, getWalletProvider])
+
+  useEffect(() => {
+    if (!address) return
+
+    if (chainId !== SEPOLIA_CONFIG.chainId) {
+      setState(prev => ({
+        ...prev,
+        ethBalance: null,
+        usdcBalance: null,
+        outputAmount: '',
+        isLoadingBalance: false,
+        error: SEPOLIA_NETWORK_ERROR,
+      }))
+      return
+    }
+
+    setState(prev => {
+      if (prev.error !== SEPOLIA_NETWORK_ERROR) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        error: null,
+      }
+    })
+  }, [address, chainId])
 
   // Fetch ETH and USDC balances
   const fetchBalances = useCallback(async () => {
@@ -76,8 +132,7 @@ export function useSwap() {
     setState(prev => ({ ...prev, isLoadingBalance: true }))
 
     try {
-      const provider = await getProvider()
-      if (!provider) return
+      const provider = await getReadProvider()
 
       // Fetch ETH balance
       const ethBalance = await provider.getBalance(address)
@@ -96,18 +151,22 @@ export function useSwap() {
         ...prev,
         ethBalance: ethBalanceFormatted,
         usdcBalance: usdcBalanceFormatted,
+        error: null,
         isLoadingBalance: false,
       }))
     } catch (error) {
       console.error('Error fetching balances:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch Sepolia balances.'
+
       setState(prev => ({
         ...prev,
         ethBalance: null,
         usdcBalance: null,
+        error: errorMessage,
         isLoadingBalance: false,
       }))
     }
-  }, [address, getProvider])
+  }, [address, getReadProvider])
 
   // Rate limiting for ETH to USDC swaps (0.1 ETH per 24 hours)
   const checkEthSwapLimit = useCallback(() => {
@@ -166,10 +225,7 @@ export function useSwap() {
     }
 
     try {
-      const provider = await getProvider()
-      if (!provider) {
-        throw new Error('No provider available')
-      }
+      const provider = await getReadProvider()
 
       const router = new ethers.Contract(
         SEPOLIA_CONFIG.UNISWAP_V2_ROUTER,
@@ -210,48 +266,17 @@ export function useSwap() {
       setState(prev => ({ ...prev, outputAmount: outputFormatted, error: null }))
     } catch (error) {
       console.error('Error estimating output:', error)
-      
-      // Try with fallback RPC if browser provider failed
-      try {
-        console.log('Trying fallback RPC...')
-        const fallbackProvider = new ethers.JsonRpcProvider(SEPOLIA_CONFIG.RPC_ENDPOINT)
-        const router = new ethers.Contract(
-          SEPOLIA_CONFIG.UNISWAP_V2_ROUTER,
-          ROUTER_ABI,
-          fallbackProvider
-        )
-
-        const path = state.isEthToUsdc
-          ? [SEPOLIA_CONFIG.WETH_ADDRESS, SEPOLIA_CONFIG.USDC_ADDRESS]
-          : [SEPOLIA_CONFIG.USDC_ADDRESS, SEPOLIA_CONFIG.WETH_ADDRESS]
-
-        const amountIn = state.isEthToUsdc
-          ? ethers.parseEther(inputAmount)
-          : ethers.parseUnits(inputAmount, 6)
-
-        const amounts = await router.getAmountsOut(amountIn, path)
-        
-        if (amounts && amounts.length >= 2 && amounts[1]) {
-          const outputDecimals = state.isEthToUsdc ? 6 : 18
-          const outputFormatted = ethers.formatUnits(amounts[1], outputDecimals)
-          
-          if (parseFloat(outputFormatted) > 0) {
-            console.log('Fallback RPC success:', outputFormatted)
-            setState(prev => ({ ...prev, outputAmount: outputFormatted, error: null }))
-            return
-          }
-        }
-      } catch (fallbackError) {
-        console.error('Fallback RPC also failed:', fallbackError)
-      }
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'Failed to estimate swap output. Please try again.'
       
       setState(prev => ({ 
         ...prev, 
         outputAmount: '', 
-        error: 'Failed to estimate swap output. Please refresh the page and try again.' 
+        error: errorMessage,
       }))
     }
-  }, [getProvider, state.isEthToUsdc])
+  }, [getReadProvider, state.isEthToUsdc])
 
   const setInputAmount = useCallback((amount: string) => {
     setState(prev => ({ ...prev, inputAmount: amount }))
@@ -325,10 +350,10 @@ export function useSwap() {
     }))
 
     try {
-      const provider = await getProvider()
-      if (!provider) throw new Error('Provider not available')
+      const provider = await getWalletProvider()
+      if (!provider) throw new Error('Wallet provider not available')
 
-      const signer = await (provider as ethers.BrowserProvider).getSigner()
+      const signer = await provider.getSigner()
       const router = new ethers.Contract(
         SEPOLIA_CONFIG.UNISWAP_V2_ROUTER,
         ROUTER_ABI,
@@ -474,7 +499,7 @@ export function useSwap() {
         isLoading: false,
       }))
     }
-  }, [address, chainId, switchChain, state.inputAmount, state.isEthToUsdc, getProvider])
+  }, [address, chainId, switchChain, state.inputAmount, state.isEthToUsdc, getWalletProvider])
 
   return {
     state,

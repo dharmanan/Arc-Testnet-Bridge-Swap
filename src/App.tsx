@@ -1,19 +1,31 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAccount, useSwitchChain } from 'wagmi'
+import { useAccount, useSwitchChain, useWalletClient } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { SwapTab } from './components/SwapTab'
 import { BridgeTab } from './components/BridgeTab'
 import { DashboardTab } from './components/DashboardTab'
 import { Container } from './components/ui'
-import { Zap, GitBranch, BarChart3, Twitter, Github, ChevronDown } from 'lucide-react'
+import { usePhantomSolana } from './hooks/usePhantomSolana'
+import { SUPPORTED_EVM_CHAIN_OPTIONS, addChainToWallet, getSupportedEvmChain, getSupportedEvmChainName } from './lib/chains'
+import { Zap, GitBranch, BarChart3, Twitter, Github, ChevronDown, Droplets } from 'lucide-react'
 import arcLogo from './assets/arc.png'
 import './index.css'
 
 type Tab = 'swap' | 'bridge' | 'dashboard'
 
 export default function App() {
-  const { address, isConnected, chainId } = useAccount()
-  const { switchChain } = useSwitchChain()
+  const { isConnected, chainId } = useAccount()
+  const { switchChainAsync } = useSwitchChain()
+  const { data: walletClient } = useWalletClient()
+  const {
+    address: phantomSolanaAddress,
+    connect: connectPhantomSolana,
+    disconnect: disconnectPhantomSolana,
+    error: phantomSolanaError,
+    isConnected: isPhantomConnected,
+    isConnecting: isConnectingPhantomSolana,
+    isPhantomInstalled,
+  } = usePhantomSolana()
   const [activeTab, setActiveTab] = useState<Tab>('swap')
   const [showNetworkDropdown, setShowNetworkDropdown] = useState(false)
   const [showLendingDropdown, setShowLendingDropdown] = useState(false)
@@ -41,128 +53,185 @@ export default function App() {
     { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={20} /> },
   ]
 
-  const getNetworkName = (chainId: number | undefined) => {
-    switch (chainId) {
-      case 11155111: return 'Sepolia'
-      case 5042002: return 'Arc Testnet'
-      default: return 'Unknown Network'
-    }
-  }
+  const networks = SUPPORTED_EVM_CHAIN_OPTIONS
 
-  const networks = [
-    { id: 11155111, name: 'Sepolia' },
-    { id: 5042002, name: 'Arc Testnet' },
-  ]
+  const handleNetworkSwitch = async (networkId: number) => {
+    const targetChain = getSupportedEvmChain(networkId)
+    const walletRequest =
+      walletClient
+        ? ((args: { method: string; params?: unknown[] }) => walletClient.transport.request(args as never))
+        : typeof window !== 'undefined' && typeof window.ethereum?.request === 'function'
+          ? window.ethereum.request.bind(window.ethereum)
+        : null
 
-  const handleNetworkSwitch = (networkId: number) => {
-    if (switchChain) {
-      switchChain({ chainId: networkId })
+    try {
+      await switchChainAsync({ chainId: networkId })
+    } catch (error) {
+      if (targetChain && walletRequest) {
+        await addChainToWallet(targetChain, walletRequest)
+        await switchChainAsync({ chainId: networkId })
+      } else {
+        console.warn('Unable to switch network:', error)
+      }
     }
+
     setShowNetworkDropdown(false)
   }
 
+  const handlePhantomAction = async () => {
+    try {
+      if (isPhantomConnected) {
+        await disconnectPhantomSolana()
+        return
+      }
+
+      await connectPhantomSolana()
+    } catch (error) {
+      console.warn('Unable to change Phantom Solana connection state:', error)
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-arc-dark-900 text-arc-text-primary">
-      {/* Header */}
-      <header className="border-b border-arc-dark-700 sticky top-0 z-50 bg-arc-dark-900/80 backdrop-blur-lg">
-        <Container className="py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <img src={arcLogo} alt="Arc Logo" className="w-10 h-10 rounded-lg" />
-            <a
-              href="https://docs.arc.network/arc/concepts/welcome-to-arc"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:opacity-80 transition-opacity"
-            >
-              <h1 className="text-xl font-bold" style={{
-                color: '#00ff88',
-                textShadow: '0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 30px #00ff88'
-              }}>Arc Bridge</h1>
-            </a>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <a
-                href="https://x.com/KohenEric"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-400 hover:text-blue-400 transition-colors"
-              >
-                <Twitter size={20} />
-              </a>
-              <a
-                href="https://github.com/dharmanan"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-400 hover:text-blue-400 transition-colors"
-              >
-                <Github size={20} />
-              </a>
-            </div>
-            {isConnected && (
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={() => setShowNetworkDropdown(!showNetworkDropdown)}
-                  className="flex items-center gap-2 px-3 py-2 bg-arc-dark-800 hover:bg-arc-dark-700 rounded-lg text-sm transition-colors"
+    <div className="min-h-screen bg-transparent text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/85 backdrop-blur-lg">
+        <Container className="py-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] lg:items-center lg:gap-8">
+            <div className="flex items-start gap-4">
+              <img src={arcLogo} alt="Arc Logo" className="h-12 w-12 flex-shrink-0 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm lg:h-14 lg:w-14" />
+              <div className="min-w-0 pt-0.5">
+                <a
+                  href="https://docs.arc.network/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition-colors hover:text-[#2F6E0C]"
                 >
-                  <span>Network: {getNetworkName(chainId)}</span>
-                  <ChevronDown size={14} className={`transition-transform ${showNetworkDropdown ? 'rotate-180' : ''}`} />
-                </button>
-                {showNetworkDropdown && (
-                  <div className="absolute top-full mt-1 right-0 bg-arc-dark-800 border border-arc-dark-700 rounded-lg shadow-lg z-50 min-w-[140px]">
-                    {networks.map((network) => (
-                      <button
-                        key={network.id}
-                        onClick={() => handleNetworkSwitch(network.id)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-arc-dark-700 transition-colors ${
-                          chainId === network.id ? 'text-arc-accent-primary' : 'text-arc-text-primary'
-                        }`}
-                      >
-                        {network.name}
-                      </button>
-                    ))}
+                  <h1 className="text-[1.9rem] font-semibold leading-[0.95] tracking-tight text-slate-900 sm:text-[2.05rem] lg:text-[2.15rem]">Arc Bridge</h1>
+                </a>
+                <p className="mt-2 max-w-[30rem] text-sm leading-6 text-slate-500 sm:text-base sm:leading-7">
+                  Simple testnet swap and bridge flows for Arc, Sepolia, and Solana.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-3 lg:items-end">
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://x.com/KohenEric"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-[#66D121]/40 hover:text-[#2F6E0C]"
+                  >
+                    <Twitter size={18} />
+                  </a>
+                  <a
+                    href="https://github.com/dharmanan"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-[#66D121]/40 hover:text-[#2F6E0C]"
+                  >
+                    <Github size={18} />
+                  </a>
+                </div>
+
+                {isConnected && (
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      onClick={() => setShowNetworkDropdown(!showNetworkDropdown)}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                    >
+                      <span>Network: {getSupportedEvmChainName(chainId)}</span>
+                      <ChevronDown size={14} className={`transition-transform ${showNetworkDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showNetworkDropdown && (
+                      <div className="absolute right-0 top-full z-50 mt-2 min-w-[160px] rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+                        {networks.map((network) => (
+                          <button
+                            key={network.id}
+                            onClick={() => handleNetworkSwitch(network.id)}
+                            className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50 ${
+                              chainId === network.id ? 'text-[#2F6E0C]' : 'text-slate-700'
+                            }`}
+                          >
+                            {network.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
+
+                <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-[#f8faf7] px-3 py-2 text-left sm:flex">
+                  <span className={`h-2.5 w-2.5 rounded-full ${isPhantomConnected ? 'bg-green-500' : isPhantomInstalled ? 'bg-amber-500' : 'bg-slate-300'}`} />
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Solana</p>
+                    <p className="text-xs font-medium text-slate-700">
+                      {isPhantomConnected && phantomSolanaAddress
+                        ? `Phantom ${phantomSolanaAddress.slice(0, 4)}...${phantomSolanaAddress.slice(-4)}`
+                        : isPhantomInstalled
+                          ? 'Phantom ready'
+                          : 'Phantom not installed'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handlePhantomAction}
+                  disabled={!isPhantomInstalled || isConnectingPhantomSolana}
+                  className="rounded-xl border border-[#2F6E0C]/20 bg-[#eef7e8] px-3 py-2 text-sm font-medium text-[#2F6E0C] transition-colors hover:bg-[#e4f1db] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isConnectingPhantomSolana ? 'Connecting Phantom...' : isPhantomConnected ? 'Disconnect Phantom' : 'Connect Phantom'}
+                </button>
+
+                <ConnectButton chainStatus="none" />
               </div>
-            )}
-            <ConnectButton chainStatus="none" />
+
+              <div className="w-full text-sm text-slate-500 lg:max-w-[560px] lg:text-right">
+                <p>
+                  EVM wallet: {isConnected ? getSupportedEvmChainName(chainId) : 'Not connected'}
+                  {' · '}
+                  Solana wallet: {isPhantomConnected ? 'Phantom connected' : isPhantomInstalled ? 'Phantom ready' : 'Phantom not installed'}
+                </p>
+                {phantomSolanaError && <p className="mt-1 text-red-500">{phantomSolanaError}</p>}
+              </div>
+            </div>
           </div>
         </Container>
       </header>
 
-      {/* Navigation Tabs */}
-      <div className="border-b border-arc-dark-700 bg-arc-dark-900/50 sticky top-16 z-40">
+      <div className="border-b border-slate-200 bg-[#f7f9f5]/70">
         <Container>
-          <nav className="flex gap-8 py-4">
+          <nav className="flex flex-wrap gap-2 py-4">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 pb-2 border-b-2 transition-colors ${
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-transparent text-dark-400 hover:text-white'
+                    ? 'border border-[#66D121]/40 bg-[#eef7e8] text-[#2F6E0C] shadow-sm'
+                    : 'border border-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-900'
                 }`}
               >
                 {tab.icon}
                 {tab.label}
               </button>
             ))}
+
             <div className="relative" ref={lendingDropdownRef}>
               <button
                 onClick={() => setShowLendingDropdown(!showLendingDropdown)}
-                className="flex items-center gap-2 pb-2 border-b-2 border-transparent text-dark-400 hover:text-white transition-colors"
+                className="inline-flex items-center gap-2 rounded-full border border-transparent px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:border-slate-200 hover:bg-white hover:text-slate-900"
               >
                 Lending
                 <ChevronDown size={14} className={`transition-transform ${showLendingDropdown ? 'rotate-180' : ''}`} />
               </button>
               {showLendingDropdown && (
-                <div className="absolute top-full mt-1 left-0 bg-arc-dark-800 border border-arc-dark-700 rounded-lg shadow-lg z-50 min-w-[140px]">
+                <div className="absolute left-0 top-full z-50 mt-2 min-w-[160px] rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
                   <a
                     href="https://arclending.vercel.app/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block px-3 py-2 text-sm text-arc-text-primary hover:bg-arc-dark-700 transition-colors"
+                    className="block rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
                     onClick={() => setShowLendingDropdown(false)}
                   >
                     Arc Lending
@@ -170,29 +239,37 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            <a
+              href="https://faucet.circle.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-transparent px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:border-slate-200 hover:bg-white hover:text-slate-900"
+            >
+              <Droplets size={18} />
+              Faucet
+            </a>
           </nav>
         </Container>
       </div>
 
-      {/* Content */}
-      <main>
+      <main className="pb-10">
         {activeTab === 'swap' && <SwapTab />}
         {activeTab === 'bridge' && <BridgeTab />}
         {activeTab === 'dashboard' && <DashboardTab />}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-arc-dark-700 py-8 mt-12">
+      <footer className="mt-12 border-t border-slate-200 py-8">
         <Container>
-          <div className="text-center text-dark-400 text-sm">
-            <div className="mt-4 p-4 bg-arc-dark-800/50 rounded-lg border border-arc-dark-700">
-              <p className="font-semibold text-arc-accent-primary mb-2">
-                MVP Testnet Application - Educational v1 for{' '}
+          <div className="text-center text-sm text-slate-500">
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
+              <p className="mb-2 font-semibold text-[#2F6E0C]">
+                MVP Testnet Application - Educational v2.1 for{' '}
                 <a
-                  href="https://docs.arc.network/arc/concepts/welcome-to-arc"
+                  href="https://docs.arc.network/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-arc-accent-primary hover:text-arc-accent-secondary underline transition-colors"
+                  className="text-[#2F6E0C] underline transition-colors hover:text-[#25580A]"
                 >
                   ARC Protocol
                 </a>

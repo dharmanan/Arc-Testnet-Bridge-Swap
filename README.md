@@ -1,207 +1,172 @@
-# Arc Sepolia DEX Bridge
+# Arc Bridge v2.1
 
-A **production-ready** decentralized exchange and cross-chain bridge application featuring **real on-chain transactions**. Swap Sepolia ETH to USDC using Uniswap V2, then bridge USDC to Arc Testnet using Circle Bridge Kit.
+Arc Bridge is a testnet swap and bridge app for Sepolia, Arc Testnet, and Solana Devnet. It keeps the Sepolia ETH <-> USDC swap flow intact, adds multi-route USDC bridge paths, and wraps the recent UI, wallet, and security work into a single `v2.1` update.
 
-## ✨ Key Features
+## v2.1 Update
 
-### 🔄 Real Uniswap V2 Swap (Sepolia)
-- **Live ETH ↔ USDC swapping** on Sepolia testnet
-- Real-time price estimation using Uniswap V2 Router
-- Actual on-chain transactions (not mock)
-- ERC20 token approval + swap execution
-- Etherscan transaction links
-- Bidirectional: ETH → USDC or USDC → ETH
-- **Rate limiting**: 0.1 ETH max per wallet per 24 hours (ETH → USDC only)
-- Full error handling and user feedback
+This `v2.1` release bundles the work completed yesterday and today.
 
-### 🌉 Real Circle Bridge Kit (Bidirectional)
-- **Live bidirectional USDC bridging**: Sepolia ↔ Arc Testnet
-- @circle-fin/bridge-kit official integration
-- Automatic chain switching
-- Real transaction hashes for source and destination
-- Dual Etherscan + ArcScan links
-- Proper bridge state progression
-- Comprehensive error handling
+- Rebuilt the app UI into a cleaner light theme with English-only copy across the product.
+- Refined navigation and branding, including updated docs links, footer versioning, and a direct faucet shortcut.
+- Kept swap behavior intentionally narrow: Sepolia `ETH <-> USDC` remains the only swap route.
+- Expanded bridge coverage with three modes: EVM `Sepolia <-> Arc`, EVM to Solana forwarding, and Solana Devnet to Arc bridging.
+- Added dedicated Phantom Solana connection handling and stronger EVM chain switching/add-chain support.
+- Improved bridge reliability with clearer status states, gateway deposit polling, recipient validation, and retry handling for `replacement transaction underpriced` wallet errors.
+- Refreshed the dependency tree, added targeted npm overrides, cleared the previous audit warnings, and revalidated the app with a production build.
 
-### 📊 Dashboard Tab
-- **Wallet Information** - Connected address and network
-- **USDC Balances** - Real balances on Sepolia and Arc Testnet
+## Supported Flows
 
-## � Screenshots
+| Flow | Route | Token | Status |
+| --- | --- | --- | --- |
+| Swap | Sepolia `ETH <-> USDC` | ETH / USDC | Active |
+| EVM Bridge | Sepolia `USDC <-> USDC` Arc Testnet | USDC | Active |
+| Gateway Forwarding | Sepolia or Arc `USDC -> Solana Devnet` | USDC | Active |
+| Solana Bridge | Solana Devnet `USDC -> Arc Testnet` | USDC | Active |
 
-### Swap Interface
-![Swap Interface](./src/assets/swap.png)
+## What Changed
 
-### Bridge Interface
-![Bridge Interface](./src/assets/bridge.png)
+### Product and UI
+
+- Reworked the application shell around a calmer `v2.1` visual system.
+- Standardized user-facing content in English.
+- Updated the header, footer, docs link, faucet entry point, and wallet status display.
+- Improved contrast, balance visibility, and tab readability across Swap, Bridge, and Dashboard.
+
+### Bridge and Wallet Work
+
+- Added a shared Wagmi + RainbowKit provider setup for Sepolia and Arc.
+- Added wallet-assisted EVM chain switching and wallet chain registration.
+- Added Phantom Solana support for Solana-side connection and signing.
+- Added Circle Gateway forwarding support for EVM to Solana delivery.
+- Added Solana Devnet to Arc bridging support through Bridge Kit + Phantom.
+- Added Gateway deposit tracking, fee estimation, recipient ATA derivation, and forwarding status polling.
+- Added retry handling around nonce replacement issues seen during bridge submissions.
+
+### Security and Maintenance
+
+- Updated the dependency set to the current app baseline used by `v2.1`.
+- Added npm `overrides` for known vulnerable transitive packages.
+- Regenerated the lockfile after remediation.
+- Cleaned the npm audit findings and rechecked the production build.
+
+## Screenshots
+
+### Swap
+![Swap Interface](./src/assets/swapv2.png)
+
+### Bridge
+![Bridge Interface](./src/assets/bridgev2.png)
 
 ### Dashboard
-![Dashboard](./src/assets/dash.png)
+![Dashboard](./src/assets/dashv2.png)
 
-## �🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
+
 - Node.js 18+
-- npm or yarn
-- **MetaMask wallet**
-- **Sepolia testnet ETH** (from [Sepolia faucet](https://www.sepoliafaucet.io))
-- **Sepolia testnet USDC** (from [Circle faucet](https://faucet.circle.com))
-- **Arc Testnet added to MetaMask** (manual setup required)
+- npm
+- An EVM wallet such as MetaMask
+- Optional: Phantom for Solana Devnet flows
+- Sepolia testnet ETH
+- Sepolia testnet USDC from Circle faucet
 
-### Manual Arc Testnet Setup
-Add Arc Testnet to MetaMask:
-- **Network Name**: Arc Testnet
-- **RPC URL**: `https://rpc.testnet.arc.network`
-- **Chain ID**: `5042002`
-- **Currency Symbol**: `USDC`
-- **Block Explorer**: `https://testnet.arcscan.app`
+### Environment
 
-### Installation
+Copy `.env.example` into your local env file and set the values you need.
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_SEPOLIA_RPC` | Sepolia RPC used by the app |
+| `VITE_ARC_TESTNET_RPC` | Arc Testnet RPC |
+| `VITE_SOLANA_DEVNET_RPC` | Solana Devnet RPC |
+| `VITE_WALLETCONNECT_PROJECT_ID` | Optional WalletConnect support |
+| `VITE_CIRCLE_APP_ID` | Optional Circle client identifier |
+
+### Install and Run
 
 ```bash
-# Clone and install
 git clone https://github.com/dharmanan/Arc-Testnet-Bridge-Swap.git
 cd Arc-Testnet-Bridge-Swap
 npm install
-
-# Start development server (port 3000)
 npm run dev
 ```
 
-Visit `http://localhost:3000` in your browser with MetaMask connected to Sepolia.
+Open `http://localhost:3000`.
 
-### Build for Production
+### Production Build
 
 ```bash
 npm run build
 ```
 
-## 🌐 Supported Networks
+## Supported Networks
 
-| Network | Chain ID | RPC | Explorer |
-|---------|----------|-----|----------|
-| Ethereum Sepolia | 11155111 | https://rpc.sepolia.org | https://sepolia.etherscan.io |
-| Arc Testnet | 5042002 | https://rpc.testnet.arc.network | https://testnet.arcscan.app |
+| Network | Chain / Domain | RPC | Explorer |
+| --- | --- | --- | --- |
+| Ethereum Sepolia | `11155111` | `https://ethereum-sepolia-rpc.publicnode.com` | `https://sepolia.etherscan.io` |
+| Arc Testnet | `5042002` | `https://rpc.testnet.arc.network` | `https://testnet.arcscan.app` |
+| Solana Devnet | Domain `5` | `https://api.devnet.solana.com` | `https://explorer.solana.com/?cluster=devnet` |
 
-## 📋 Token Addresses
+## Addresses and Endpoints
 
-### Sepolia
-| Token | Address |
-|-------|---------|
-| WETH | `0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9` |
-| USDC (Bridge Kit) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
-
-### Arc Testnet
-| Token | Address |
-|-------|---------|
-| USDC (Native) | `0x3600000000000000000000000000000000000000` |
-
-## 🛠️ Tech Stack
-
-- **Frontend**: React 18, TypeScript 5.2, Vite 4.5.14
-- **Styling**: Tailwind CSS 3.3
-- **Icons**: Lucide React
-- **Wallet**: wagmi 2.5.0, @rainbow-me/rainbowkit 2.1.0
-- **Web3**: ethers.js v6.7.1, viem 2.0.0
-- **DEX**: Uniswap V2 SDK
-- **Bridge**: @circle-fin/bridge-kit, @circle-fin/adapter-viem-v2
-- **Animations**: framer-motion, canvas-confetti
-
-## 📂 Project Structure
-
-```
-src/
-├── components/
-│   ├── SwapTab.tsx       # Uniswap V2 swap interface
-│   ├── BridgeTab.tsx     # Circle Bridge Kit interface  
-│   ├── DashboardTab.tsx  # Account & balances dashboard
-│   └── ui/               # UI components
-├── hooks/
-│   ├── useSwap.ts        # Uniswap V2 swap logic
-│   └── useBridgeKit.ts   # Circle Bridge Kit logic
-├── App.tsx
-└── main.tsx
-```
-
-## 🔄 Complete Workflow
-
-```
-1. Connect MetaMask Wallet (Sepolia)
-   ↓
-2. Go to Swap Tab
-   - Select ETH → USDC direction
-   - Enter amount
-   - Approve + sign swap
-   ✅ Get real USDC on Sepolia (Etherscan link provided)
-   ↓
-3. Go to Bridge Tab
-   - Select Sepolia → Arc direction
-   - Enter USDC amount
-   - Approve + sign bridge
-   ✅ Get native USDC on Arc Testnet (ArcScan link provided)
-   ↓
-4. View on Dashboard
-   - See balances on both chains
-   - Access transaction links
-```
-
-## 🔗 Important Smart Contract Addresses
-
-| Contract | Address | Network |
-|----------|---------|---------|
+| Item | Address / Value | Network |
+| --- | --- | --- |
 | Uniswap V2 Router | `0xC532a74256D3Db42D0Bf7a0400fEFDbad7694008` | Sepolia |
-| USDC (Bridge Kit) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` | Sepolia |
-| USDC (Native) | `0x3600000000000000000000000000000000000000` | Arc |
+| Sepolia USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` | Sepolia |
+| Arc Native USDC | `0x3600000000000000000000000000000000000000` | Arc Testnet |
+| Gateway Wallet | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` | EVM forwarding |
+| Solana Devnet USDC Mint | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` | Solana Devnet |
+| Solana Gateway Minter | `GATEmKK2ECL1brEngQZWCgMWPbvrEYqsV6u29dAaHavr` | Solana Devnet |
 
-## 🔐 Security Notes
+## Project Structure
 
-- ✅ All transactions signed by user wallet
-- ✅ Testnet-only (no real funds)
-- ✅ Standard ERC-20 and Uniswap V2 contracts
-- ✅ Circle Bridge Kit production-grade
-- ⚠️ Always verify addresses before approving
+```text
+src/
+  App.tsx
+  components/
+    BridgeTab.tsx
+    DashboardTab.tsx
+    SwapTab.tsx
+    ui/
+  hooks/
+    useBridgeKit.ts
+    useGatewayForwarding.ts
+    usePhantomSolana.ts
+    useSolanaBridge.ts
+    useSwap.ts
+  lib/
+    chains.ts
+    solana.ts
+    wagmi.config.ts
+    web3.tsx
+```
 
-## 📖 Available Scripts
+## Development Notes
+
+- Swap is intentionally limited to Sepolia `ETH <-> USDC`.
+- Arc docs links now point to `https://docs.arc.network/`.
+- Local markdown notes other than `README.md` are ignored from this workspace state.
+- `postinstall` writes a minimal `tsconfig.base.json` shim needed by the current dependency stack.
+
+## Validation
+
+The current `v2.1` workspace was validated with:
 
 ```bash
-npm run dev      # Start dev server (port 3000)
-npm run build    # Build for production
-npm run preview  # Preview production build
-npm run lint     # Run ESLint
+npm run build
+npm audit
 ```
 
-## 🐛 Troubleshooting
+## Scripts
 
-**Wallet Connection**
-- Ensure MetaMask connected to Sepolia testnet
-- Add Arc Testnet manually if not available
+```bash
+npm run dev
+npm run build
+npm run preview
+npm run lint
+```
 
-**Bridge Not Working**
-- Ensure sufficient USDC balance on Sepolia
-- Check both chains are configured in MetaMask
-- Verify Bridge Kit supported
-
-**Swap Fails**
-- Check you have enough ETH for gas
-- Verify sufficient token balance
-- Check Uniswap liquidity
-
-## 📝 Additional Resources
-
-- [See all features](./FEATURES.md)
-- [Setup & deployment guide](./SETUP.md)
-- [Development documentation](./DEVELOP.md)
-- [Uniswap V2 Docs](https://docs.uniswap.org/contracts/v2/)
-- [Circle Bridge Kit Docs](https://developers.circle.com/bridge-kit)
-- [ethers.js v6](https://docs.ethers.org/v6/)
-- [wagmi Documentation](https://wagmi.sh/)
-
-## 📄 License
+## License
 
 MIT
-
----
-
-**Last Updated**: November 2025
-**Status**: Production Ready ✅
-**Networks**: Sepolia + Arc Testnet

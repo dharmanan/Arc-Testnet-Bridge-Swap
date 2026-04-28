@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+import { ARC_EVM_CHAIN_ID, SEPOLIA_EVM_CHAIN_ID } from '../lib/chains'
 
 /**
  * Format token amount to readable string
@@ -85,8 +86,8 @@ export function shortenAddress(address: string, chars: number = 4): string {
  */
 export function getTxUrl(txHash: string, chainId: number): string {
   const baseUrls: { [key: number]: string } = {
-    11155111: 'https://sepolia.etherscan.io/tx',
-    42124: 'https://testnet.arcscan.io/tx',
+    [SEPOLIA_EVM_CHAIN_ID]: 'https://sepolia.etherscan.io/tx',
+    [ARC_EVM_CHAIN_ID]: 'https://testnet.arcscan.io/tx',
   }
 
   const baseUrl = baseUrls[chainId]
@@ -98,8 +99,8 @@ export function getTxUrl(txHash: string, chainId: number): string {
  */
 export function getAddressUrl(address: string, chainId: number): string {
   const baseUrls: { [key: number]: string } = {
-    11155111: 'https://sepolia.etherscan.io/address',
-    42124: 'https://testnet.arcscan.io/address',
+    [SEPOLIA_EVM_CHAIN_ID]: 'https://sepolia.etherscan.io/address',
+    [ARC_EVM_CHAIN_ID]: 'https://testnet.arcscan.io/address',
   }
 
   const baseUrl = baseUrls[chainId]

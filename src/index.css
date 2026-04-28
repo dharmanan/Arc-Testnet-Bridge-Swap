@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,13 +11,19 @@
 }
 
 body {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  color: #e2e8f0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(102, 209, 33, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(47, 110, 12, 0.08), transparent 24%),
+    linear-gradient(180deg, #f8faf7 0%, #f1f5ef 100%);
+  color: #0f172a;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  min-height: 100vh;
 }
 
 #root {
   min-height: 100vh;
+}
+
+a {
+  color: inherit;
 }

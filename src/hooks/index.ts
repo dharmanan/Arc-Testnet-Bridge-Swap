@@ -1,5 +1,10 @@
 export { useSwap } from './useSwap'
 export { useBridgeKit } from './useBridgeKit'
+export { useGatewayForwarding } from './useGatewayForwarding'
+export { usePhantomSolana } from './usePhantomSolana'
+export { useSolanaBridge } from './useSolanaBridge'
 
 export type { BridgeToken, BridgeStep, BridgeState } from './useBridgeKit'
 export { SEPOLIA_CHAIN_ID, ARC_CHAIN_ID, CHAIN_TOKENS, CHAIN_NAMES } from './useBridgeKit'
+export type { GatewayForwardingState, GatewayForwardingStep } from './useGatewayForwarding'
+export type { SolanaBridgeState, SolanaBridgeStep } from './useSolanaBridge'

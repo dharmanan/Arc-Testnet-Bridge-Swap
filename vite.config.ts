@@ -3,27 +3,31 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    global: 'globalThis',
+  },
+  resolve: {
+    alias: {
+      buffer: 'buffer/',
+    },
+  },
   server: {
     port: 3000,
     host: 'localhost',
     strictPort: false,
   },
   optimizeDeps: {
-    esbuildOptions: {
-      supported: {
-        'import-meta': true,
-        'top-level-await': true,
-      },
-      sourcemap: false,
-    },
     exclude: ['@base-org/account'],
+    include: ['buffer'],
   },
   build: {
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          wagmi: ['wagmi'],
+        manualChunks(id) {
+          if (id.includes('/node_modules/wagmi/')) {
+            return 'wagmi'
+          }
         },
       },
     },

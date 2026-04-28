@@ -1,36 +1,16 @@
+import { ARC_EVM_CHAIN, SEPOLIA_EVM_CHAIN } from '../lib/chains'
+
 export const SEPOLIA_TESTNET = {
-  id: 11155111,
-  name: 'Sepolia',
+  ...SEPOLIA_EVM_CHAIN,
   network: 'sepolia',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: {
-    default: {
-      http: ['https://rpc.sepolia.org'],
-    },
-  },
-  blockExplorers: {
-    default: { name: 'Etherscan', url: 'https://sepolia.etherscan.io' },
-  },
-  testnet: true,
 }
 
 export const ARC_TESTNET = {
-  id: 42124,
-  name: 'Arc Testnet',
+  ...ARC_EVM_CHAIN,
   network: 'arc-testnet',
-  nativeCurrency: { name: 'Arc', symbol: 'ARC', decimals: 18 },
-  rpcUrls: {
-    default: {
-      http: ['https://rpc.testnet.arccoin.io'],
-    },
-  },
-  blockExplorers: {
-    default: { name: 'ArcScan', url: 'https://testnet.arcscan.io' },
-  },
-  testnet: true,
 }
 
-// SushiSwap Sepolia Addresses (çalışan Sepolia DEX)
+// SushiSwap Sepolia addresses (working Sepolia DEX)
 export const SUSHISWAP_SEPOLIA = {
   ROUTER: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506', // SushiSwap Router
   FACTORY: '0xFBC12984063f1e1339AC3bd02d1adBAc89fED8ab',
@@ -47,5 +27,4 @@ export const TOKEN_DECIMALS = {
 // Circle Bridge Kit config
 export const CIRCLE_CONFIG = {
   appId: import.meta.env.VITE_CIRCLE_APP_ID || '',
-  apiKey: import.meta.env.VITE_CIRCLE_API_KEY || '',
 }

@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useAccount, useSwitchChain } from 'wagmi';
+import { useAccount, useSwitchChain, useWalletClient } from 'wagmi';
 import { createAdapterFromProvider } from '@circle-fin/adapter-viem-v2';
 import { BridgeKit } from '@circle-fin/bridge-kit';
 import { type EIP1193Provider, createPublicClient, http, parseAbi } from 'viem';
+import { ethers } from 'ethers';
+import { ARC_EVM_CHAIN, ARC_EVM_CHAIN_ID, SEPOLIA_EVM_CHAIN, SEPOLIA_EVM_CHAIN_ID } from '../lib/chains';
 
-export const SEPOLIA_CHAIN_ID = 11155111;
-export const ARC_CHAIN_ID = 5042002;
+export const SEPOLIA_CHAIN_ID = SEPOLIA_EVM_CHAIN_ID;
+export const ARC_CHAIN_ID = ARC_EVM_CHAIN_ID;
 
 export type BridgeToken = 'USDC';
 export type BridgeStep = 
@@ -64,6 +66,11 @@ const ERC20_ABI = parseAbi([
   'function balanceOf(address account) external view returns (uint256)',
 ]);
 
+interface Eip1193RequestArguments {
+  method: string;
+  params?: unknown[] | Record<string, unknown>;
+}
+
 // Public clients for each chain with timeout
 const createClientWithTimeout = (url: string) => {
   return createPublicClient({
@@ -75,15 +82,16 @@ const createClientWithTimeout = (url: string) => {
 };
 
 const publicClients: Record<number, any> = {
-  [SEPOLIA_CHAIN_ID]: createClientWithTimeout('https://eth-sepolia.g.alchemy.com/v2/demo'),
-  [ARC_CHAIN_ID]: createClientWithTimeout('https://rpc.testnet.arc.network'),
+  [SEPOLIA_CHAIN_ID]: createClientWithTimeout(import.meta.env.VITE_SEPOLIA_RPC || SEPOLIA_EVM_CHAIN.rpcUrls.default.http[0]),
+  [ARC_CHAIN_ID]: createClientWithTimeout(import.meta.env.VITE_ARC_TESTNET_RPC || ARC_EVM_CHAIN.rpcUrls.default.http[0]),
 };
 
 let bridgeKitInstance: BridgeKit | null = null;
 
 export function useBridgeKit() {
   const { address, isConnected, chainId } = useAccount();
-  const { switchChain } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
+  const { data: walletClient } = useWalletClient();
 
   const [state, setState] = useState<BridgeState>({
     step: 'idle',
@@ -116,10 +124,33 @@ export function useBridgeKit() {
   }, []);
 
   // Fetch token balance
+  const getWalletProvider = useCallback(
+    async (targetChainId: number) => {
+      if (!walletClient || walletClient.chain.id !== targetChainId) {
+        return null;
+      }
+
+      return new ethers.BrowserProvider(
+        {
+          request: async ({ method, params }: Eip1193RequestArguments) => {
+            return walletClient.transport.request({ method, params } as never);
+          },
+        },
+        {
+          chainId: walletClient.chain.id,
+          name: walletClient.chain.name,
+          ensAddress: walletClient.chain.contracts?.ensRegistry?.address,
+        },
+      );
+    },
+    [walletClient],
+  );
+
   const fetchTokenBalance = useCallback(
     async (token: BridgeToken, targetChainId: number) => {
       if (!address) {
         setTokenBalance('0');
+        setBalanceError('');
         return;
       }
 
@@ -132,37 +163,57 @@ export function useBridgeKit() {
           throw new Error(`Token ${token} not found on chain ${targetChainId}`);
         }
 
-        const publicClient = publicClients[targetChainId];
-        if (!publicClient) {
-          throw new Error(`Public client not found for chain ${targetChainId}`);
-        }
-
-        // Read balance from contract
         console.log(`🔍 Fetching ${token} balance from ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]}...`);
-        const balance = await publicClient.readContract({
-          address: tokenInfo.contractAddress as `0x${string}`,
-          abi: ERC20_ABI,
-          functionName: 'balanceOf',
-          args: [address as `0x${string}`],
-        });
+        const walletProvider = await getWalletProvider(targetChainId);
+
+        let balance: bigint;
+
+        if (walletProvider) {
+          const tokenContract = new ethers.Contract(
+            tokenInfo.contractAddress,
+            ['function balanceOf(address) view returns (uint256)'],
+            walletProvider,
+          );
+          balance = await tokenContract.balanceOf(address);
+        } else {
+          const publicClient = publicClients[targetChainId];
+          if (!publicClient) {
+            throw new Error(`Public client not found for chain ${targetChainId}`);
+          }
+
+          balance = await publicClient.readContract({
+            address: tokenInfo.contractAddress as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: 'balanceOf',
+            args: [address as `0x${string}`],
+          });
+        }
 
         const balanceFloat = Number(balance) / Math.pow(10, tokenInfo.decimals);
         setTokenBalance(balanceFloat.toFixed(6));
         console.log(`✅ Balance fetched for ${token} on chain ${targetChainId}: ${balanceFloat.toFixed(6)}`);
       } catch (err: any) {
-        console.warn(`⚠️ Balance fetch failed for ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]} (${err.message}), using fallback`);
-        // Fallback to demo balances
-        if (targetChainId === SEPOLIA_CHAIN_ID) {
-          setTokenBalance('10.50');
-        } else {
-          setTokenBalance('5.25');
-        }
+        console.warn(`⚠️ Balance fetch failed for ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]}: ${err.message}`);
+        setTokenBalance('0.000000');
+        setBalanceError(`Failed to read ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]} ${token} balance. Refresh or switch to that network and try again.`);
       } finally {
         setIsLoadingBalance(false);
       }
     },
-    [address]
+    [address, getWalletProvider]
   );
+
+  const getConnectedProvider = useCallback((): EIP1193Provider | null => {
+    if (!walletClient) {
+      return null;
+    }
+
+    return {
+      request: async ({ method, params }: Eip1193RequestArguments) => {
+        return walletClient.transport.request({ method, params } as never);
+      },
+    } as EIP1193Provider;
+  }, [walletClient]);
 
   // Reset state
   const reset = useCallback(() => {
@@ -208,19 +259,14 @@ export function useBridgeKit() {
           direction,
         }));
 
-        if (!window.ethereum) {
-          throw new Error('MetaMask not found. Please install MetaMask.');
+        const provider = getConnectedProvider();
+        if (!provider) {
+          throw new Error('Connected wallet provider is not available. Reconnect your wallet and try again.');
         }
 
         if (!bridgeKitInstance) {
           bridgeKitInstance = new BridgeKit();
         }
-
-        // Create adapter from wallet provider
-        setState(prev => ({ ...prev, step: 'switching-network' }));
-        const adapter = await createAdapterFromProvider({
-          provider: window.ethereum as EIP1193Provider,
-        });
 
         const isSepoliaToArc = direction === 'sepolia-to-arc';
         const sourceChainId = isSepoliaToArc ? SEPOLIA_CHAIN_ID : ARC_CHAIN_ID;
@@ -283,17 +329,37 @@ export function useBridgeKit() {
         console.log(`✅ Source chain: ${sourceChain.name}`);
         console.log(`✅ Destination chain: ${destinationChain.name}`);
 
-        // Switch to source chain if needed
-        if (chainId !== sourceChainId && switchChain) {
+        // Switch to source chain if needed and fail closed if the wallet stays on the wrong chain.
+        if (chainId !== sourceChainId) {
+          if (!switchChainAsync) {
+            throw new Error(`Please switch your wallet to ${CHAIN_NAMES[sourceChainId]} before bridging.`);
+          }
+
+          setState(prev => ({ ...prev, step: 'switching-network' }));
+
           try {
-            await switchChain({ chainId: sourceChainId });
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await switchChainAsync({ chainId: sourceChainId });
+            await new Promise(resolve => setTimeout(resolve, 1200));
           } catch (err: any) {
-            if (!err.message?.includes('User rejected')) {
-              console.warn('⚠️ Chain switch warning:', err.message);
-            }
+            throw new Error(
+              err?.message?.includes('User rejected')
+                ? `You rejected the switch to ${CHAIN_NAMES[sourceChainId]}.`
+                : `Failed to switch your wallet to ${CHAIN_NAMES[sourceChainId]}.`
+            );
           }
         }
+
+        const activeChainHex = await provider.request({ method: 'eth_chainId' }) as string;
+        const activeChainId = Number.parseInt(activeChainHex, 16);
+
+        if (activeChainId !== sourceChainId) {
+          throw new Error(`Wallet is still connected to the wrong chain. Switch to ${CHAIN_NAMES[sourceChainId]} and try again.`);
+        }
+
+        // Create adapter from the active wagmi wallet provider
+        const adapter = await createAdapterFromProvider({
+          provider,
+        });
 
         // Execute bridge
         setState(prev => ({ ...prev, step: 'approving' }));
@@ -308,11 +374,11 @@ export function useBridgeKit() {
         const result = await bridgeKitInstance.bridge({
           from: {
             adapter: adapter,
-            chain: sourceChain.chain,
+            chain: sourceChain,
           },
           to: {
             adapter: adapter,
-            chain: destinationChain.chain,
+            chain: destinationChain,
           },
           amount: amount, // Bridge Kit expects string amount directly
         });
@@ -334,7 +400,7 @@ export function useBridgeKit() {
           if (result.steps[1]?.txHash) {
             sourceTxHash = result.steps[1].txHash;
           }
-          // steps[3] typically contains the mint/receive tx
+
           if (result.steps[3]?.txHash) {
             receiveTxHash = result.steps[3].txHash;
           }
@@ -389,7 +455,7 @@ export function useBridgeKit() {
         });
       }
     },
-    [address, isConnected, chainId, switchChain]
+    [address, isConnected, chainId, switchChainAsync, fetchTokenBalance, getConnectedProvider]
   );
 
   return {

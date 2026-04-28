@@ -1,31 +1,23 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { WagmiProvider, createConfig, http } from 'wagmi'
-import { sepolia } from 'wagmi/chains'
-import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Buffer } from 'buffer'
 import App from './App'
 import '@rainbow-me/rainbowkit/styles.css'
+import { Web3Provider } from './lib/web3'
 import './index.css'
 
-const config = createConfig({
-  chains: [sepolia],
-  transports: {
-    [sepolia.id]: http('https://rpc.sepolia.org'),
-  },
-  ssr: true,
-})
+const globalScope = globalThis as typeof globalThis & {
+  Buffer?: typeof Buffer
+  global?: typeof globalThis
+}
 
-const queryClient = new QueryClient()
+globalScope.Buffer ??= Buffer
+globalScope.global ??= globalThis
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          <App />
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <Web3Provider>
+      <App />
+    </Web3Provider>
   </StrictMode>,
 )
