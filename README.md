@@ -4,7 +4,7 @@ Arc Bridge is a testnet swap and bridge app for Sepolia, Arc Testnet, and Solana
 
 ## v2.1 Update
 
-This `v2.1` release bundles the work completed yesterday and today.
+This `v2.1` release bundles the latest UI, bridge, Solana, and security updates.
 
 - Rebuilt the app UI into a cleaner light theme with English-only copy across the product.
 - Refined navigation and branding, including updated docs links, footer versioning, and a direct faucet shortcut.
