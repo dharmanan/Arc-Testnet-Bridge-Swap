@@ -5,6 +5,7 @@ import { BridgeKit } from '@circle-fin/bridge-kit';
 import { type EIP1193Provider, createPublicClient, http, parseAbi } from 'viem';
 import { ethers } from 'ethers';
 import { ARC_EVM_CHAIN, ARC_EVM_CHAIN_ID, SEPOLIA_EVM_CHAIN, SEPOLIA_EVM_CHAIN_ID } from '../lib/chains';
+import { logger } from '../lib/logger';
 
 export const SEPOLIA_CHAIN_ID = SEPOLIA_EVM_CHAIN_ID;
 export const ARC_CHAIN_ID = ARC_EVM_CHAIN_ID;
@@ -113,10 +114,10 @@ export function useBridgeKit() {
       try {
         if (!bridgeKitInstance) {
           bridgeKitInstance = new BridgeKit();
-          console.log('✅ Bridge Kit initialized');
+          logger.debug('✅ Bridge Kit initialized');
         }
       } catch (err) {
-        console.error('❌ Failed to initialize Bridge Kit:', err);
+        logger.error('❌ Failed to initialize Bridge Kit:', err);
       }
     };
 
@@ -163,7 +164,7 @@ export function useBridgeKit() {
           throw new Error(`Token ${token} not found on chain ${targetChainId}`);
         }
 
-        console.log(`🔍 Fetching ${token} balance from ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]}...`);
+        logger.debug(`🔍 Fetching ${token} balance from ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]}...`);
         const walletProvider = await getWalletProvider(targetChainId);
 
         let balance: bigint;
@@ -191,9 +192,9 @@ export function useBridgeKit() {
 
         const balanceFloat = Number(balance) / Math.pow(10, tokenInfo.decimals);
         setTokenBalance(balanceFloat.toFixed(6));
-        console.log(`✅ Balance fetched for ${token} on chain ${targetChainId}: ${balanceFloat.toFixed(6)}`);
+        logger.debug(`✅ Balance fetched for ${token} on chain ${targetChainId}: ${balanceFloat.toFixed(6)}`);
       } catch (err: any) {
-        console.warn(`⚠️ Balance fetch failed for ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]}: ${err.message}`);
+        logger.warn(`⚠️ Balance fetch failed for ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]}: ${err.message}`);
         setTokenBalance('0.000000');
         setBalanceError(`Failed to read ${CHAIN_NAMES[targetChainId as keyof typeof CHAIN_NAMES]} ${token} balance. Refresh or switch to that network and try again.`);
       } finally {
@@ -272,11 +273,11 @@ export function useBridgeKit() {
         const sourceChainId = isSepoliaToArc ? SEPOLIA_CHAIN_ID : ARC_CHAIN_ID;
         const destinationChainId = isSepoliaToArc ? ARC_CHAIN_ID : SEPOLIA_CHAIN_ID;
 
-        console.log(`🌉 Bridging ${amount} ${token} from ${CHAIN_NAMES[sourceChainId]} to ${CHAIN_NAMES[destinationChainId]}`);
+        logger.debug(`🌉 Bridging ${amount} ${token} from ${CHAIN_NAMES[sourceChainId]} to ${CHAIN_NAMES[destinationChainId]}`);
 
         // Get supported chains from Bridge Kit
         const supportedChains = bridgeKitInstance.getSupportedChains();
-        console.log(`📋 Supported chains:`, supportedChains.map((c: any) => ({
+        logger.debug(`📋 Supported chains:`, supportedChains.map((c: any) => ({
           name: c.name,
           chainId: 'chainId' in c ? c.chainId : 'unknown',
         })));
@@ -326,8 +327,8 @@ export function useBridgeKit() {
           throw new Error(`Destination chain ${destinationChainId} not supported by Bridge Kit`);
         }
 
-        console.log(`✅ Source chain: ${sourceChain.name}`);
-        console.log(`✅ Destination chain: ${destinationChain.name}`);
+        logger.debug(`✅ Source chain: ${sourceChain.name}`);
+        logger.debug(`✅ Destination chain: ${destinationChain.name}`);
 
         // Switch to source chain if needed and fail closed if the wallet stays on the wrong chain.
         if (chainId !== sourceChainId) {
@@ -363,10 +364,10 @@ export function useBridgeKit() {
 
         // Execute bridge
         setState(prev => ({ ...prev, step: 'approving' }));
-        console.log('🔄 Step changed to: approving');
+        logger.debug('🔄 Step changed to: approving');
 
-        console.log(`🔄 Starting bridge transaction...`);
-        console.log(`💰 Amount: ${amount} USDC`);
+        logger.debug(`🔄 Starting bridge transaction...`);
+        logger.debug(`💰 Amount: ${amount} USDC`);
 
         // Execute bridge
         setState(prev => ({ ...prev, step: 'approving' }));
@@ -383,7 +384,7 @@ export function useBridgeKit() {
           amount: amount, // Bridge Kit expects string amount directly
         });
 
-        console.log('✅ Bridge result:', result);
+        logger.debug('✅ Bridge result:', result);
 
         // Update step to signing-bridge after approval
         setState(prev => ({ ...prev, step: 'signing-bridge' }));
@@ -408,7 +409,7 @@ export function useBridgeKit() {
 
         // Update step to waiting for receive confirmation
         setState(prev => ({ ...prev, step: 'waiting-receive-message' }));
-        console.log('🔄 Step changed to: waiting-receive-message');
+        logger.debug('🔄 Step changed to: waiting-receive-message');
 
         setState({
           step: 'success',
@@ -420,11 +421,11 @@ export function useBridgeKit() {
           direction,
         });
 
-        console.log('🎉 Bridge successful!');
+        logger.debug('🎉 Bridge successful!');
 
         // Refresh balances after bridge
         setTimeout(async () => {
-          console.log('🔄 Refreshing balances after bridge...');
+          logger.debug('🔄 Refreshing balances after bridge...');
           
           const sourceChainId = direction === 'sepolia-to-arc' ? SEPOLIA_CHAIN_ID : ARC_CHAIN_ID;
           const destinationChainId = direction === 'sepolia-to-arc' ? ARC_CHAIN_ID : SEPOLIA_CHAIN_ID;
@@ -432,10 +433,10 @@ export function useBridgeKit() {
           // Fetch both balances
           await fetchTokenBalance('USDC', sourceChainId);
           await fetchTokenBalance('USDC', destinationChainId);
-          console.log('✅ Balances updated!');
+          logger.debug('✅ Balances updated!');
         }, 1000); // Wait 1 second before refreshing
       } catch (err: any) {
-        console.error('❌ Bridge error:', err);
+        logger.error('❌ Bridge error:', err);
 
         let errorMessage = err.message || 'Bridge transaction failed';
 

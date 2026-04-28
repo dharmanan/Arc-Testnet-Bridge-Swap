@@ -7,6 +7,7 @@ import { DashboardTab } from './components/DashboardTab'
 import { Container } from './components/ui'
 import { usePhantomSolana } from './hooks/usePhantomSolana'
 import { SUPPORTED_EVM_CHAIN_OPTIONS, addChainToWallet, getSupportedEvmChain, getSupportedEvmChainName } from './lib/chains'
+import { logger } from './lib/logger'
 import { Zap, GitBranch, BarChart3, Twitter, Github, ChevronDown, Droplets } from 'lucide-react'
 import arcLogo from './assets/arc.png'
 import './index.css'
@@ -71,7 +72,7 @@ export default function App() {
         await addChainToWallet(targetChain, walletRequest)
         await switchChainAsync({ chainId: networkId })
       } else {
-        console.warn('Unable to switch network:', error)
+        logger.warn('Unable to switch network:', error)
       }
     }
 
@@ -87,7 +88,7 @@ export default function App() {
 
       await connectPhantomSolana()
     } catch (error) {
-      console.warn('Unable to change Phantom Solana connection state:', error)
+      logger.warn('Unable to change Phantom Solana connection state:', error)
     }
   }
 

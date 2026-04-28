@@ -4,6 +4,7 @@ import { BridgeKit } from '@circle-fin/bridge-kit'
 import { createAdapterFromProvider as createEvmAdapterFromProvider } from '@circle-fin/adapter-viem-v2'
 import { createSolanaAdapterFromProvider } from '@circle-fin/adapter-solana'
 import { ARC_EVM_CHAIN, ARC_EVM_CHAIN_ID, addChainToWallet } from '../lib/chains'
+import { logger } from '../lib/logger'
 import { createSolanaDevnetConnection, fetchSolanaUsdcBalance } from '../lib/solana'
 
 export type SolanaBridgeStep =
@@ -201,7 +202,7 @@ export function useSolanaBridge() {
       const nextBalance = await fetchSolanaUsdcBalance(ownerAddress)
       setSolanaBalance(nextBalance)
     } catch (error) {
-      console.warn('Unable to fetch Solana USDC balance:', error)
+      logger.warn('Unable to fetch Solana USDC balance:', error)
       setSolanaBalance('0.000000')
       setBalanceError('Failed to read Solana Devnet USDC balance. Confirm Phantom is on Devnet and try again.')
     } finally {
@@ -268,7 +269,7 @@ export function useSolanaBridge() {
       try {
         await addChainToWallet(ARC_EVM_CHAIN, walletRequest)
       } catch (error) {
-        console.warn('Unable to pre-register Arc in the EVM wallet:', error)
+        logger.warn('Unable to pre-register Arc in the EVM wallet:', error)
       }
 
       setState({

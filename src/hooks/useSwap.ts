@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useAccount, useSwitchChain, useWalletClient } from 'wagmi'
 import { ethers } from 'ethers'
 import { SEPOLIA_EVM_CHAIN_ID } from '../lib/chains'
+import { logger } from '../lib/logger'
 
 // Sepolia Testnet Configuration
 const SEPOLIA_CONFIG = {
@@ -155,7 +156,7 @@ export function useSwap() {
         isLoadingBalance: false,
       }))
     } catch (error) {
-      console.error('Error fetching balances:', error)
+      logger.error('Error fetching balances:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch Sepolia balances.'
 
       setState(prev => ({
@@ -201,7 +202,7 @@ export function useSwap() {
       // Update localStorage with filtered history
       localStorage.setItem(key, JSON.stringify(recentSwaps))
     } catch (error) {
-      console.error('Error checking ETH swap limit:', error)
+      logger.error('Error checking ETH swap limit:', error)
       setState(prev => ({
         ...prev,
         ethSwapLimitReached: false,
@@ -241,7 +242,7 @@ export function useSwap() {
         ? ethers.parseEther(inputAmount)
         : ethers.parseUnits(inputAmount, 6)
       
-      console.log('Estimating swap:', {
+      logger.debug('Estimating swap:', {
         inputAmount,
         direction: state.isEthToUsdc ? 'ETH->USDC' : 'USDC->ETH',
         amountIn: amountIn.toString(),
@@ -257,7 +258,7 @@ export function useSwap() {
       const outputDecimals = state.isEthToUsdc ? 6 : 18
       const outputFormatted = ethers.formatUnits(amounts[1], outputDecimals)
       
-      console.log('Estimated output:', outputFormatted)
+      logger.debug('Estimated output:', outputFormatted)
       
       if (parseFloat(outputFormatted) <= 0) {
         throw new Error('Output amount too small')
@@ -265,7 +266,7 @@ export function useSwap() {
       
       setState(prev => ({ ...prev, outputAmount: outputFormatted, error: null }))
     } catch (error) {
-      console.error('Error estimating output:', error)
+      logger.error('Error estimating output:', error)
       const errorMessage = error instanceof Error
         ? error.message
         : 'Failed to estimate swap output. Please try again.'
@@ -453,7 +454,7 @@ export function useSwap() {
           // Update limit status
           checkEthSwapLimit()
         } catch (error) {
-          console.error('Error recording swap history:', error)
+          logger.error('Error recording swap history:', error)
         }
       }
 
@@ -473,7 +474,7 @@ export function useSwap() {
         }))
       }, 5000)
     } catch (error) {
-      console.error('Swap failed:', error)
+      logger.error('Swap failed:', error)
       
       let errorMessage = 'An unknown error occurred'
       

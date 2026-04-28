@@ -6,6 +6,7 @@ import { useGatewayForwarding } from '../hooks/useGatewayForwarding'
 import { usePhantomSolana } from '../hooks/usePhantomSolana'
 import { useSolanaBridge } from '../hooks/useSolanaBridge'
 import { deriveSolanaUsdcAta, isValidSolanaAddress, SOLANA_DEVNET_NAME } from '../lib/solana'
+import { logger } from '../lib/logger'
 import { ArrowLeftRight, Loader2, CheckCircle, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react'
 
 export function BridgeTab() {
@@ -271,7 +272,7 @@ export function BridgeTab() {
     try {
       await connectPhantomSolana()
     } catch (error) {
-      console.warn('Unable to connect Phantom on Solana:', error)
+      logger.warn('Unable to connect Phantom on Solana:', error)
     }
   }
 
@@ -279,7 +280,7 @@ export function BridgeTab() {
     try {
       await disconnectPhantomSolana()
     } catch (error) {
-      console.warn('Unable to disconnect Phantom on Solana:', error)
+      logger.warn('Unable to disconnect Phantom on Solana:', error)
     }
   }
 
@@ -304,7 +305,7 @@ export function BridgeTab() {
       try {
         await switchChainAsync({ chainId: nextSourceChainId })
       } catch (error) {
-        console.warn('Unable to switch bridge source chain automatically:', error)
+        logger.warn('Unable to switch bridge source chain automatically:', error)
         return
       }
     }
