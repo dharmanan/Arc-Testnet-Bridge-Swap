@@ -8,7 +8,7 @@ import { Container } from './components/ui'
 import { usePhantomSolana } from './hooks/usePhantomSolana'
 import { SUPPORTED_EVM_CHAIN_OPTIONS, addChainToWallet, getSupportedEvmChain, getSupportedEvmChainName } from './lib/chains'
 import { logger } from './lib/logger'
-import { Zap, GitBranch, BarChart3, Twitter, Github, ChevronDown, Droplets } from 'lucide-react'
+import { Zap, GitBranch, BarChart3, Twitter, Github, ChevronDown, Droplets, AlertTriangle, X } from 'lucide-react'
 import arcLogo from './assets/arc.png'
 import './index.css'
 
@@ -30,8 +30,32 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('swap')
   const [showNetworkDropdown, setShowNetworkDropdown] = useState(false)
   const [showLendingDropdown, setShowLendingDropdown] = useState(false)
+  const [isMobileExperience, setIsMobileExperience] = useState(false)
+  const [hasDismissedMobileNotice, setHasDismissedMobileNotice] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const lendingDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const mobileQuery = window.matchMedia('(max-width: 768px), (pointer: coarse)')
+    const syncMobileExperience = () => {
+      const userAgent = window.navigator.userAgent || ''
+      const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
+      setIsMobileExperience(mobileQuery.matches || isMobileUserAgent)
+    }
+
+    syncMobileExperience()
+    mobileQuery.addEventListener?.('change', syncMobileExperience)
+    window.addEventListener('orientationchange', syncMobileExperience)
+
+    return () => {
+      mobileQuery.removeEventListener?.('change', syncMobileExperience)
+      window.removeEventListener('orientationchange', syncMobileExperience)
+    }
+  }, [])
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -92,8 +116,54 @@ export default function App() {
     }
   }
 
+  const showMobileNotice = isMobileExperience && !hasDismissedMobileNotice
+
   return (
     <div className="min-h-screen bg-transparent text-slate-900">
+      {showMobileNotice && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-warning-title"
+            className="relative w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+          >
+            <button
+              type="button"
+              onClick={() => setHasDismissedMobileNotice(true)}
+              className="absolute right-4 top-4 rounded-full border border-slate-200 p-2 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+              aria-label="Close mobile notice"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+              <AlertTriangle size={22} />
+            </div>
+
+            <h2 id="mobile-warning-title" className="text-xl font-semibold tracking-tight text-slate-900">
+              Mobile notice
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              This version is not optimized for mobile devices. Please use a desktop browser for the best experience.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              You can continue on mobile, but wallet connections and transaction flows may not work as expected.
+            </p>
+
+            <div className="mt-6 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => setHasDismissedMobileNotice(true)}
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-[#2F6E0C] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#25580A]"
+              >
+                Continue on mobile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/85 backdrop-blur-lg">
         <Container className="py-4">
           <div className="grid gap-4 lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] lg:items-center lg:gap-8">
