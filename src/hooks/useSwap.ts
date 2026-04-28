@@ -346,6 +346,7 @@ export function useSwap() {
       ...prev,
       error: null,
       status: 'Initiating swap...',
+      txHash: null,
       isLoading: true,
     }))
 
@@ -469,7 +470,6 @@ export function useSwap() {
         setState(prev => ({
           ...prev,
           status: null,
-          txHash: null,
         }))
       }, 5000)
     } catch (error) {

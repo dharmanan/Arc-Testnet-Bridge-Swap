@@ -166,11 +166,11 @@ export function SwapTab() {
             )}
 
             {/* Success Display */}
-            {state.status && state.status.includes('successful') && (
+            {state.txHash && !state.isLoading && !state.error && (
               <div className="flex items-start rounded-xl border border-[#66D121]/25 bg-[#eef7e8] p-3 text-[#25580A]">
                 <CheckCircle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
                 <div className="text-sm">
-                  <p className="font-semibold">Swap Successful!</p>
+                  <p className="font-semibold">Latest Successful Swap</p>
                   {state.txHash && (
                     <a
                       href={`https://sepolia.etherscan.io/tx/${state.txHash}`}

@@ -12,3 +12,5 @@ dist/
 # Local-only markdown docs
 *.md
 !README.md
+.vercel
+.env*.local
