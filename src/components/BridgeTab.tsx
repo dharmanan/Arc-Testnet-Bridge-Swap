@@ -623,21 +623,23 @@ export function BridgeTab() {
       const transactionDestinationChainName = getSupportedEvmChainName(state.destinationChainId)
       const transactionDirection = `${transactionSourceChainName.toLowerCase().replace(/\s+/g, '-')}-to-${transactionDestinationChainName.toLowerCase().replace(/\s+/g, '-')}`
 
-      const transaction = {
-        id: `${Date.now()}`,
-        type: 'bridge',
-        direction: transactionDirection,
-        amount: amount,
-        fromNetwork: transactionSourceChainName,
-        toNetwork: transactionDestinationChainName,
-        timestamp: new Date().toISOString(),
-        sourceTxHash: state.sourceTxHash,
-        receiveTxHash: state.receiveTxHash,
-      }
+      const txId = state.sourceTxHash
+        || `${transactionDirection}-${amount}-${state.sourceChainId}-${state.destinationChainId}`
 
       const existingTransactions = JSON.parse(localStorage.getItem('bridgeTransactions') || '[]')
-      const isAlreadySaved = existingTransactions.some((t: any) => t.id === transaction.id)
+      const isAlreadySaved = existingTransactions.some((t: any) => t.id === txId)
       if (!isAlreadySaved) {
+        const transaction = {
+          id: txId,
+          type: 'bridge',
+          direction: transactionDirection,
+          amount: amount,
+          fromNetwork: transactionSourceChainName,
+          toNetwork: transactionDestinationChainName,
+          timestamp: new Date().toISOString(),
+          sourceTxHash: state.sourceTxHash,
+          receiveTxHash: state.receiveTxHash,
+        }
         existingTransactions.unshift(transaction)
         localStorage.setItem('bridgeTransactions', JSON.stringify(existingTransactions.slice(0, 10)))
       }

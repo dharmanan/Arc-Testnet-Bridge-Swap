@@ -1,10 +1,11 @@
 import { useAccount } from 'wagmi'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card, Container } from './ui'
 import { Wallet, TrendingUp, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
-import { useBridgeKit, SEPOLIA_CHAIN_ID, ARC_CHAIN_ID } from '../hooks/useBridgeKit'
+import { useBridgeKit, SEPOLIA_CHAIN_ID, ARC_CHAIN_ID, BASE_CHAIN_ID, OPTIMISM_CHAIN_ID, ARBITRUM_CHAIN_ID } from '../hooks/useBridgeKit'
 import { usePhantomSolana } from '../hooks/usePhantomSolana'
 import { getSupportedEvmChainName } from '../lib/chains'
+import { fetchSolanaUsdcBalance } from '../lib/solana'
 
 interface Transaction {
   id: string;
@@ -40,8 +41,42 @@ export function DashboardTab() {
     isLoadingBalance: arcLoading,
     balanceError: arcError,
   } = useBridgeKit()
+  const {
+    fetchTokenBalance: fetchBaseBalance,
+    tokenBalance: baseBalance,
+    isLoadingBalance: baseLoading,
+    balanceError: baseError,
+  } = useBridgeKit()
+  const {
+    fetchTokenBalance: fetchOptimismBalance,
+    tokenBalance: optimismBalance,
+    isLoadingBalance: optimismLoading,
+    balanceError: optimismError,
+  } = useBridgeKit()
+  const {
+    fetchTokenBalance: fetchArbitrumBalance,
+    tokenBalance: arbitrumBalance,
+    isLoadingBalance: arbitrumLoading,
+    balanceError: arbitrumError,
+  } = useBridgeKit()
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [solanaBalance, setSolanaBalance] = useState<string | null>(null)
+  const [solanaBalanceLoading, setSolanaBalanceLoading] = useState(false)
+  const [solanaBalanceError, setSolanaBalanceError] = useState<string | null>(null)
+
+  const loadSolanaBalance = useCallback(async (ownerAddress: string) => {
+    setSolanaBalanceLoading(true)
+    setSolanaBalanceError(null)
+    try {
+      const bal = await fetchSolanaUsdcBalance(ownerAddress)
+      setSolanaBalance(bal)
+    } catch {
+      setSolanaBalanceError('Failed to fetch Solana Devnet USDC balance.')
+    } finally {
+      setSolanaBalanceLoading(false)
+    }
+  }, [])
 
   // Fetch balances on mount and when address changes
   useEffect(() => {
@@ -51,8 +86,23 @@ export function DashboardTab() {
       
       // Fetch Arc balance
       fetchArcBalance('USDC', ARC_CHAIN_ID)
+      // Fetch Base Sepolia balance
+      fetchBaseBalance('USDC', BASE_CHAIN_ID)
+      // Fetch Optimism Sepolia balance
+      fetchOptimismBalance('USDC', OPTIMISM_CHAIN_ID)
+      // Fetch Arbitrum Sepolia balance
+      fetchArbitrumBalance('USDC', ARBITRUM_CHAIN_ID)
     }
-  }, [address, isConnected, fetchTokenBalance, fetchArcBalance])
+  }, [address, isConnected, fetchTokenBalance, fetchArcBalance, fetchBaseBalance, fetchOptimismBalance, fetchArbitrumBalance])
+
+  useEffect(() => {
+    if (phantomSolanaAddress) {
+      loadSolanaBalance(phantomSolanaAddress)
+    } else {
+      setSolanaBalance(null)
+      setSolanaBalanceError(null)
+    }
+  }, [phantomSolanaAddress, loadSolanaBalance])
 
   // Load transactions from localStorage
   useEffect(() => {
@@ -60,15 +110,19 @@ export function DashboardTab() {
     setTransactions(savedTransactions)
   }, [])
 
-  // Calculate bridge statistics
-  const sepoliaToArcCount = transactions.filter(t => t.direction === 'sepolia-to-arc').length
-  const arcToSepoliaCount = transactions.filter(t => t.direction === 'arc-to-sepolia').length
-  const solanaForwardCount = transactions.filter(
-    (t) => t.type === 'solana-forward' || t.direction.includes('solana') || t.toNetwork === 'Solana Devnet'
-  ).length
-  const solanaToArcCount = transactions.filter(
-    (t) => t.type === 'solana-bridge' || t.direction === 'solana-to-arc' || t.fromNetwork === 'Solana Devnet'
-  ).length
+  // Dynamically compute bridge statistics grouped by route
+  const bridgeRouteStats = transactions.reduce<Record<string, { from: string; to: string; count: number }>>(
+    (acc, tx) => {
+      const from = tx.fromNetwork || 'Unknown'
+      const to = tx.toNetwork || 'Unknown'
+      const key = `${from}→${to}`
+      if (!acc[key]) acc[key] = { from, to, count: 0 }
+      acc[key].count++
+      return acc
+    },
+    {}
+  )
+  const bridgeRoutes = Object.values(bridgeRouteStats)
 
   const getTransactionRoute = (transaction: Transaction) => {
     if (transaction.type === 'solana-bridge' || transaction.direction === 'solana-to-arc' || transaction.fromNetwork === 'Solana Devnet') {
@@ -244,7 +298,7 @@ export function DashboardTab() {
                     <button
                       onClick={() => fetchArcBalance('USDC', ARC_CHAIN_ID)}
                       className="text-xs hover:text-red-300 transition-colors"
-                      title={arcError}
+                      title={arcError ?? undefined}
                     >
                       Retry
                     </button>
@@ -255,30 +309,116 @@ export function DashboardTab() {
                 )}
               </div>
             </div>
+
+            {/* Solana Devnet USDC */}
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f8faf7] p-4">
+              <div>
+                <p className="font-semibold">USDC (Solana)</p>
+                <p className="text-sm text-slate-500">Solana Devnet</p>
+              </div>
+              <div className="text-right">
+                {!phantomSolanaAddress ? (
+                  <span className="text-sm text-slate-400">Connect Phantom</span>
+                ) : solanaBalanceLoading ? (
+                  <Loader2 size={16} className="animate-spin ml-auto" />
+                ) : solanaBalanceError ? (
+                  <div className="flex items-center gap-2 justify-end text-red-400">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <button
+                      onClick={() => loadSolanaBalance(phantomSolanaAddress)}
+                      className="text-xs hover:text-red-300 transition-colors"
+                      title={solanaBalanceError}
+                    >
+                      Retry
+                    </button>
+                    <RefreshCw size={12} />
+                  </div>
+                ) : (
+                  <span className="text-lg font-semibold">{solanaBalance} USDC</span>
+                )}
+              </div>
+            </div>
+
+            {/* Base Sepolia USDC */}
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f8faf7] p-4">
+              <div>
+                <p className="font-semibold">USDC (Base)</p>
+                <p className="text-sm text-slate-500">Base Sepolia Testnet</p>
+              </div>
+              <div className="text-right">
+                {baseLoading ? (
+                  <Loader2 size={16} className="animate-spin ml-auto" />
+                ) : baseError ? (
+                  <div className="flex items-center gap-2 justify-end text-red-400">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <button onClick={() => fetchBaseBalance('USDC', BASE_CHAIN_ID)} className="text-xs hover:text-red-300 transition-colors" title={baseError ?? undefined}>Retry</button>
+                    <RefreshCw size={12} />
+                  </div>
+                ) : (
+                  <span className="text-lg font-semibold">{baseBalance} USDC</span>
+                )}
+              </div>
+            </div>
+
+            {/* Optimism Sepolia USDC */}
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f8faf7] p-4">
+              <div>
+                <p className="font-semibold">USDC (Optimism)</p>
+                <p className="text-sm text-slate-500">Optimism Sepolia Testnet</p>
+              </div>
+              <div className="text-right">
+                {optimismLoading ? (
+                  <Loader2 size={16} className="animate-spin ml-auto" />
+                ) : optimismError ? (
+                  <div className="flex items-center gap-2 justify-end text-red-400">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <button onClick={() => fetchOptimismBalance('USDC', OPTIMISM_CHAIN_ID)} className="text-xs hover:text-red-300 transition-colors" title={optimismError ?? undefined}>Retry</button>
+                    <RefreshCw size={12} />
+                  </div>
+                ) : (
+                  <span className="text-lg font-semibold">{optimismBalance} USDC</span>
+                )}
+              </div>
+            </div>
+
+            {/* Arbitrum Sepolia USDC */}
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f8faf7] p-4">
+              <div>
+                <p className="font-semibold">USDC (Arbitrum)</p>
+                <p className="text-sm text-slate-500">Arbitrum Sepolia Testnet</p>
+              </div>
+              <div className="text-right">
+                {arbitrumLoading ? (
+                  <Loader2 size={16} className="animate-spin ml-auto" />
+                ) : arbitrumError ? (
+                  <div className="flex items-center gap-2 justify-end text-red-400">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <button onClick={() => fetchArbitrumBalance('USDC', ARBITRUM_CHAIN_ID)} className="text-xs hover:text-red-300 transition-colors" title={arbitrumError ?? undefined}>Retry</button>
+                    <RefreshCw size={12} />
+                  </div>
+                ) : (
+                  <span className="text-lg font-semibold">{arbitrumBalance} USDC</span>
+                )}
+              </div>
+            </div>
           </div>
         </Card>
 
         {/* Bridge Statistics */}
         <Card>
           <h3 className="text-lg font-semibold mb-4">Bridge Transactions</h3>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-[#f8faf7] p-4 text-center">
-              <p className="mb-1 text-sm text-slate-500">Sepolia → Arc</p>
-              <p className="text-2xl font-bold text-green-400">{sepoliaToArcCount}</p>
+          {bridgeRoutes.length === 0 ? (
+            <p className="text-sm text-slate-500">No bridge transactions recorded yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {bridgeRoutes.map((route) => (
+                <div key={`${route.from}→${route.to}`} className="rounded-xl border border-slate-200 bg-[#f8faf7] p-4 text-center">
+                  <p className="mb-1 text-xs text-slate-500 leading-snug">{route.from} → {route.to}</p>
+                  <p className="text-2xl font-bold text-sky-600">{route.count}</p>
+                </div>
+              ))}
             </div>
-            <div className="rounded-xl border border-slate-200 bg-[#f8faf7] p-4 text-center">
-              <p className="mb-1 text-sm text-slate-500">Arc → Sepolia</p>
-              <p className="text-2xl font-bold text-sky-600">{arcToSepoliaCount}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-[#f8faf7] p-4 text-center">
-              <p className="mb-1 text-sm text-slate-500">To Solana</p>
-              <p className="text-2xl font-bold text-amber-600">{solanaForwardCount}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-[#f8faf7] p-4 text-center">
-              <p className="mb-1 text-sm text-slate-500">Solana → Arc</p>
-              <p className="text-2xl font-bold text-cyan-600">{solanaToArcCount}</p>
-            </div>
-          </div>
+          )}
         </Card>
 
         {/* Recent Transactions */}
