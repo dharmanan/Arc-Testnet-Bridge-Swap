@@ -53,6 +53,65 @@ function getResultStep(result: BridgeKitResult | null | undefined, stepName: str
   return result?.steps?.find((step) => step.name === stepName)
 }
 
+function extractStepTxHash(step: BridgeKitStepResult | null | undefined) {
+  if (!step) {
+    return undefined
+  }
+
+  const stepRecord = step as Record<string, unknown>
+  const valuesRecord = stepRecord.values as Record<string, unknown> | undefined
+
+  return (
+    (typeof step.txHash === 'string' ? step.txHash : undefined)
+    || (typeof stepRecord.transactionHash === 'string' ? stepRecord.transactionHash : undefined)
+    || (typeof stepRecord.hash === 'string' ? stepRecord.hash : undefined)
+    || (typeof valuesRecord?.txHash === 'string' ? valuesRecord.txHash : undefined)
+    || (typeof valuesRecord?.transactionHash === 'string' ? valuesRecord.transactionHash : undefined)
+    || (typeof valuesRecord?.signature === 'string' ? valuesRecord.signature : undefined)
+  )
+}
+
+function extractEventTxHash(event: unknown) {
+  if (!event || typeof event !== 'object') {
+    return undefined
+  }
+
+  const eventRecord = event as Record<string, unknown>
+  const valuesRecord = eventRecord.values as Record<string, unknown> | undefined
+
+  return (
+    (typeof valuesRecord?.txHash === 'string' ? valuesRecord.txHash : undefined)
+    || (typeof valuesRecord?.transactionHash === 'string' ? valuesRecord.transactionHash : undefined)
+    || (typeof valuesRecord?.signature === 'string' ? valuesRecord.signature : undefined)
+    || (typeof eventRecord.txHash === 'string' ? eventRecord.txHash : undefined)
+    || (typeof eventRecord.transactionHash === 'string' ? eventRecord.transactionHash : undefined)
+    || (typeof eventRecord.signature === 'string' ? eventRecord.signature : undefined)
+  )
+}
+
+function findResultStepByKeywords(result: BridgeKitResult | null | undefined, keywords: string[]) {
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase())
+
+  return result?.steps?.find((step) => {
+    const name = String(step.name ?? '').toLowerCase()
+    if (!name) {
+      return false
+    }
+
+    return normalizedKeywords.some((keyword) => name.includes(keyword))
+  })
+}
+
+function getBridgeTxHashes(result: BridgeKitResult | null | undefined) {
+  const burnStep = getResultStep(result, 'burn') || findResultStepByKeywords(result, ['burn', 'depositforburn'])
+  const mintStep = getResultStep(result, 'mint') || findResultStepByKeywords(result, ['mint', 'receive', 'reclaim'])
+
+  return {
+    sourceTxHash: extractStepTxHash(burnStep),
+    receiveTxHash: extractStepTxHash(mintStep),
+  }
+}
+
 function getSolanaAddressString(publicKey?: { toBase58?: () => string; toString(): string } | null) {
   if (!publicKey) {
     return undefined
@@ -283,12 +342,17 @@ export function useSolanaBridge() {
       })
 
       const kit = new BridgeKit()
+      let observedSourceTxHash: string | undefined
+      let observedReceiveTxHash: string | undefined
 
       kit.on('burn', (event: any) => {
+        const burnTxHash = extractEventTxHash(event)
+        observedSourceTxHash = burnTxHash || observedSourceTxHash
+
         setState((previousState) => ({
           ...previousState,
           step: 'waiting-attestation',
-          sourceTxHash: event?.values?.txHash || previousState.sourceTxHash,
+          sourceTxHash: burnTxHash || previousState.sourceTxHash,
           status: 'Burn confirmed on Solana. Waiting for Circle attestation.',
         }))
       })
@@ -302,9 +366,12 @@ export function useSolanaBridge() {
       })
 
       kit.on('mint', (event: any) => {
+        const mintTxHash = extractEventTxHash(event)
+        observedReceiveTxHash = mintTxHash || observedReceiveTxHash
+
         setState((previousState) => ({
           ...previousState,
-          receiveTxHash: event?.values?.txHash || previousState.receiveTxHash,
+          receiveTxHash: mintTxHash || previousState.receiveTxHash,
           status: 'Mint transaction submitted on Arc.',
         }))
       })
@@ -354,8 +421,9 @@ export function useSolanaBridge() {
           amount,
         })) as BridgeKitResult
 
-        const sourceTxHash = getResultStep(result, 'burn')?.txHash
-        const receiveTxHash = getResultStep(result, 'mint')?.txHash
+          const resultHashes = getBridgeTxHashes(result)
+          const sourceTxHash = resultHashes.sourceTxHash || observedSourceTxHash
+          const receiveTxHash = resultHashes.receiveTxHash || observedReceiveTxHash
 
         if (result.state === 'error') {
           throw new Error(getReadableBridgeError(null, result))
@@ -373,14 +441,16 @@ export function useSolanaBridge() {
 
         void fetchBalance(getSolanaAddressString(solanaProvider.publicKey) ?? null)
       } catch (error) {
+          const resultHashes = getBridgeTxHashes(result)
+
         setState((previousState) => ({
           ...previousState,
           step: 'error',
           error: getReadableBridgeError(error, result),
           isLoading: false,
           result,
-          sourceTxHash: getResultStep(result, 'burn')?.txHash || previousState.sourceTxHash,
-          receiveTxHash: getResultStep(result, 'mint')?.txHash || previousState.receiveTxHash,
+            sourceTxHash: resultHashes.sourceTxHash || observedSourceTxHash || previousState.sourceTxHash,
+            receiveTxHash: resultHashes.receiveTxHash || observedReceiveTxHash || previousState.receiveTxHash,
           status: null,
         }))
       }

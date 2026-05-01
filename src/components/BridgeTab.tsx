@@ -1407,7 +1407,7 @@ export function BridgeTab() {
                       href={`https://explorer.solana.com/tx/${solanaBridgeState.sourceTxHash}?cluster=devnet`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 hover:text-green-100 transition-colors"
+                      className="flex items-center gap-2 text-[#25580A] transition-colors hover:text-[#1E4608]"
                     >
                       <span>View Solana burn tx</span>
                       <ExternalLink size={12} />
@@ -1418,7 +1418,7 @@ export function BridgeTab() {
                       href={`https://testnet.arcscan.app/tx/${solanaBridgeState.receiveTxHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 hover:text-green-100 transition-colors"
+                      className="flex items-center gap-2 text-[#25580A] transition-colors hover:text-[#1E4608]"
                     >
                       <span>View Arc mint tx</span>
                       <ExternalLink size={12} />
@@ -1437,10 +1437,23 @@ export function BridgeTab() {
                     <p className="text-xs mt-1">USDC forwarding from {sourceChainName} to {destinationChainName} was confirmed by Gateway.</p>
                   </div>
                 </div>
-                <div className="space-y-1 mt-3 pt-3 border-t border-green-400/20 text-xs text-green-100/90">
+                <div className="space-y-1 mt-3 pt-3 border-t border-green-400/20 text-xs text-[#25580A]">
                   {gatewayState.transferId && <p className="break-all">Transfer ID: {gatewayState.transferId}</p>}
                   {gatewayState.status && <p>Gateway status: {gatewayState.status}</p>}
                   {gatewayState.recipientAta && <p className="break-all">Recipient ATA: {gatewayState.recipientAta}</p>}
+                  {gatewayState.destinationBalanceBefore && (
+                    <p>Recipient balance before: {gatewayState.destinationBalanceBefore} USDC</p>
+                  )}
+                  {gatewayState.destinationBalanceAfter && (
+                    <p>Recipient balance latest: {gatewayState.destinationBalanceAfter} USDC</p>
+                  )}
+                  {gatewayState.fundsArrivalChecked && (
+                    <p>
+                      {gatewayState.fundsArrived
+                        ? 'Funds arrival confirmed by Solana balance increase.'
+                        : 'Gateway finalized, but expected recipient balance increase is not observed yet. Refresh and check again shortly.'}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
