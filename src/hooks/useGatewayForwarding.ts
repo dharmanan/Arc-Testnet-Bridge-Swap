@@ -793,6 +793,10 @@ export function useGatewayForwarding() {
 
   const resolveWalletClientForChain = useCallback(
     async (targetChainId: GatewaySourceChainId) => {
+      if (!isConnected) {
+        throw new Error('Wallet is not connected.')
+      }
+
       if (walletClient && walletClient.chain?.id === targetChainId) {
         return walletClient
       }
@@ -804,8 +808,15 @@ export function useGatewayForwarding() {
           if (refreshedWalletClient && refreshedWalletClient.chain?.id === targetChainId) {
             return refreshedWalletClient
           }
-        } catch {
-          // Keep polling until the wallet client updates to the target chain.
+        } catch (err) {
+          // If the provider is already processing a requestAccounts call (common on
+          // mobile MetaMask), stop polling immediately rather than hammering the
+          // provider for the full timeout duration.
+          const message = err instanceof Error ? err.message : String(err)
+          if (message.includes('Already processing eth_requestAccounts')) {
+            break
+          }
+          // For other errors keep polling until the wallet client updates to the target chain.
         }
 
         await delay(WALLET_CLIENT_REFRESH_INTERVAL_MS)
@@ -813,7 +824,7 @@ export function useGatewayForwarding() {
 
       throw new Error('Wallet stayed on the previous network. Switch to the selected source chain in your wallet and try again.')
     },
-    [walletClient],
+    [isConnected, walletClient],
   )
 
   const pollGatewayDeposit = useCallback(
