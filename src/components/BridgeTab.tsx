@@ -760,6 +760,7 @@ export function BridgeTab() {
     !isConnected ||
     activeState.isLoading ||
     activeState.step === 'success' ||
+    activeState.step === 'ready-to-claim' ||
     !hasAmount ||
     (!isSolanaMode && !isSolanaSourceMode && sourceEvmChainId === destinationEvmChainId) ||
     (!isSolanaMode && !isSolanaSourceMode && !isRouteEnabled) ||
@@ -1649,19 +1650,25 @@ export function BridgeTab() {
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className={`rounded-full p-1 ${isWaitingForArrival ? 'bg-amber-100 text-amber-700' : hasBridgeReachedArc ? 'bg-[#eef7e8] text-[#2F6E0C]' : 'bg-slate-100 text-slate-400'}`}>
-                      {isWaitingForArrival ? <Loader2 size={16} className="animate-spin" /> : <Clock size={16} />}
+                    <div className={`rounded-full p-1 ${state.step === 'ready-to-claim' ? 'bg-[#eef7e8] text-[#2F6E0C]' : isWaitingForArrival ? 'bg-amber-100 text-amber-700' : hasBridgeReachedArc ? 'bg-[#eef7e8] text-[#2F6E0C]' : 'bg-slate-100 text-slate-400'}`}>
+                      {isWaitingForArrival && state.step !== 'ready-to-claim' ? <Loader2 size={16} className="animate-spin" /> : <Clock size={16} />}
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {hasBridgeReachedArc ? 'Bridge relayed to Arc' : `Wait ${trackedRemainingMinutes > 0 ? `${trackedRemainingMinutes} min` : 'for Arc mint'}`}
+                        {state.step === 'ready-to-claim'
+                          ? 'Attestation ready — claim below'
+                          : hasBridgeReachedArc
+                            ? 'Bridge relayed to Arc'
+                            : `Wait ${trackedRemainingMinutes > 0 ? `${trackedRemainingMinutes} min` : 'for Arc mint'}`}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {isTrackedBaseToArc
-                          ? 'Base testnet transfers usually settle in 15-20 minutes.'
-                          : isTrackedOptimismToArc
-                            ? 'Optimism testnet transfers usually settle in 20-30 minutes.'
-                            : 'Waiting for the destination-chain mint to be confirmed.'}
+                        {state.step === 'ready-to-claim'
+                          ? 'Circle has attested the transfer. Click "Claim USDC on Arc" to sign the mint.'
+                          : isTrackedBaseToArc
+                            ? 'Base testnet transfers usually settle in 15-20 minutes.'
+                            : isTrackedOptimismToArc
+                              ? 'Optimism testnet transfers usually settle in 20-30 minutes.'
+                              : 'Waiting for the destination-chain mint to be confirmed.'}
                       </p>
                     </div>
                   </div>
@@ -1699,13 +1706,29 @@ export function BridgeTab() {
 
             <div className="mt-5 flex flex-wrap gap-3">
               {pendingBridge && !hasBridgeReachedArc && (
-                <button
-                  onClick={() => void resumePendingBridge(pendingBridge)}
-                  disabled={state.isLoading}
-                  className="inline-flex items-center justify-center rounded-2xl bg-[#2F6E0C] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#25580A] disabled:opacity-60"
-                >
-                  {state.isLoading ? 'Continuing...' : 'Continue pending bridge'}
-                </button>
+                <>
+                  {state.step === 'ready-to-claim' ? (
+                    <button
+                      onClick={() => void resumePendingBridge(pendingBridge)}
+                      disabled={state.isLoading}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2F6E0C] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#25580A] disabled:opacity-60 animate-pulse"
+                    >
+                      {state.isLoading ? (
+                        <><Loader2 size={15} className="animate-spin" /> Claiming...</>
+                      ) : (
+                        <>✅ Claim USDC on Arc — Sign to mint</>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => void resumePendingBridge(pendingBridge)}
+                      disabled={state.isLoading}
+                      className="inline-flex items-center justify-center rounded-2xl bg-[#2F6E0C] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#25580A] disabled:opacity-60"
+                    >
+                      {state.isLoading ? 'Continuing...' : 'Continue pending bridge'}
+                    </button>
+                  )}
+                </>
               )}
               {getAddressExplorerUrl(trackedBridge.sourceChainId, trackedBridge.walletAddress) && (
                 <a
