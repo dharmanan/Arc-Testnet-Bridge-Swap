@@ -12,6 +12,7 @@ import {
 } from './chains'
 
 const walletConnectProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID?.trim() || '00000000000000000000000000000000'
+const hasWalletConnect = walletConnectProjectId !== '00000000000000000000000000000000'
 
 const connectors = connectorsForWallets(
   [
@@ -20,7 +21,7 @@ const connectors = connectorsForWallets(
       wallets: [
         metaMaskWallet,
         coinbaseWallet,
-        walletConnectWallet,
+        ...(hasWalletConnect ? [walletConnectWallet] : []),
         injectedWallet,
       ],
     },

@@ -31,11 +31,8 @@ export type BridgeStep =
   | 'approving' 
   | 'signing-bridge'
   | 'waiting-receive-message'
-  | 'ready-to-claim'
   | 'success' 
   | 'error';
-
-const MANUAL_CLAIM_SENTINEL = '__MANUAL_CLAIM_REQUIRED__';
 
 export interface BridgeState {
   step: BridgeStep;
@@ -548,20 +545,6 @@ export function useBridgeKit() {
         const trackedProvider: EIP1193Provider = {
           request: async (args: any) => {
             const { method, params } = args ?? {};
-
-            // Before the receiveMessage tx fires (3rd tx on slow routes), pause and
-            // let the user manually trigger the claim instead of the wallet opening
-            // unexpectedly after a 3-18 minute wait.
-            if (
-              shouldTrackPendingBridge
-              && (method === 'eth_sendTransaction' || method === 'eth_sendRawTransaction')
-            ) {
-              const current = readPendingBridge();
-              if (current?.sourceTxHash && !current?.receiveTxHash) {
-                throw new Error(MANUAL_CLAIM_SENTINEL);
-              }
-            }
-
             const response = await (provider as any).request({ method, params } as any);
 
             if (
@@ -727,19 +710,6 @@ export function useBridgeKit() {
           logger.debug('✅ Balances updated!');
         }, 1000); // Wait 1 second before refreshing
       } catch (err: any) {
-        // Intentional pause before the receiveMessage tx — show a manual claim button
-        if (err?.message === MANUAL_CLAIM_SENTINEL) {
-          setState({
-            step: 'ready-to-claim',
-            error: null,
-            result: null,
-            isLoading: false,
-            sourceChainId,
-            destinationChainId,
-          });
-          return;
-        }
-
         logger.error('❌ Bridge error:', err);
         if (shouldTrackPendingBridge) {
           localStorage.removeItem(PENDING_BRIDGE_KEY);
