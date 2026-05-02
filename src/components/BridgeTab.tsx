@@ -757,6 +757,7 @@ export function BridgeTab() {
   }
 
   const isBridgeDisabled =
+    !isConnected ||
     activeState.isLoading ||
     activeState.step === 'success' ||
     !hasAmount ||
@@ -772,18 +773,6 @@ export function BridgeTab() {
     ? getTxExplorerUrl(trackedBridge.destinationChainId, trackedReceiveTxHash)
     : undefined
 
-  if (!isConnected) {
-    return (
-      <Container className="py-12">
-        <Card className="text-center">
-          <ArrowLeftRight size={48} className="mx-auto mb-4 text-slate-400" />
-          <h2 className="text-xl font-semibold mb-2">Connect Your Wallet</h2>
-          <p className="text-slate-500">Connect your wallet to bridge USDC across supported EVM routes.</p>
-        </Card>
-      </Container>
-    )
-  }
-
   return (
     <>
       <Container className="py-12">
@@ -791,6 +780,13 @@ export function BridgeTab() {
         <Card>
           <h2 className="text-2xl font-bold mb-2">Bridge USDC</h2>
           <p className="mb-6 text-sm text-slate-500">Choose the route, review balances, then follow the guided confirmations.</p>
+
+          {!isConnected && (
+            <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <AlertCircle size={16} className="shrink-0" />
+              Connect your wallet to bridge USDC across supported EVM routes.
+            </div>
+          )}
 
           {trackedBridge && (isTrackedOptimismToArc || isTrackedBaseToArc) && (
             <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800">

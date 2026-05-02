@@ -24,24 +24,19 @@ export function SwapTab() {
     }
   }, [isConnected, isOnSepolia, fetchBalances])
 
-  if (!isConnected) {
-    return (
-      <Container className="py-12">
-        <Card className="text-center">
-          <ArrowDownUp size={48} className="mx-auto mb-4 text-slate-400" />
-          <h2 className="text-xl font-semibold mb-2">Connect Your Wallet</h2>
-          <p className="text-slate-500">Connect your wallet to swap ETH for USDC on Sepolia</p>
-        </Card>
-      </Container>
-    )
-  }
-
   return (
     <Container className="py-12">
       <div className="max-w-lg mx-auto">
         <Card>
           <h2 className="text-2xl font-bold mb-2">ETH ↔ USDC Swap</h2>
           <p className="text-slate-500 text-sm mb-6">Swap on Sepolia using Uniswap V2 Protocol</p>
+
+          {!isConnected && (
+            <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <AlertCircle size={16} className="shrink-0" />
+              Connect your wallet to swap ETH for USDC on Sepolia.
+            </div>
+          )}
 
           <div className="space-y-4">
             {/* Input Amount */}
@@ -199,6 +194,7 @@ export function SwapTab() {
               onClick={executeSwap}
               loading={state.isLoading}
               disabled={
+                !isConnected ||
                 state.isLoading || 
                 !localInputAmount || 
                 parseFloat(localInputAmount) <= 0 || 
