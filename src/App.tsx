@@ -141,7 +141,6 @@ export default function App() {
   }
 
   const showMobileNotice = isMobileExperience && !hasDismissedMobileNotice
-
   return (
     <div className="min-h-screen bg-transparent text-slate-900">
       {showMobileNotice && (
