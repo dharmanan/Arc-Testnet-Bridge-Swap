@@ -1,8 +1,11 @@
 import { badRequest, json, methodNotAllowed, serverError } from './_lib/http.js';
 import { redisGetJson, redisSetJson, redisSrem } from './_lib/redis.js';
 import { pendingSetKey, transferKey, TRANSFER_STATUS } from './_lib/transfers.js';
-import { applyCors, enforceIdempotency, enforceRateLimit } from './_lib/security.js';
+import { applyCors, enforceIdempotency, enforceRateLimit, enforceRequestBodySize } from './_lib/security.js';
 import { isValidTxHash } from './_lib/validate.js';
+
+const WRITE_RATE_LIMIT = { windowSeconds: 60, maxRequests: 20 };
+const BODY_LIMIT = { maxBytes: 4 * 1024 };
 
 async function parseBody(req) {
   if (!req.body) return {};
@@ -27,7 +30,12 @@ export default async function handler(req, res) {
       return methodNotAllowed(res, ['POST']);
     }
 
-    const rateLimitResponse = await enforceRateLimit(req, res, 'transfers-update:post');
+    const bodyLimitResponse = enforceRequestBodySize(req, res, BODY_LIMIT);
+    if (bodyLimitResponse) {
+      return bodyLimitResponse;
+    }
+
+    const rateLimitResponse = await enforceRateLimit(req, res, 'transfers-update:post', WRITE_RATE_LIMIT);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAccount, useSwitchChain, useWalletClient } from 'wagmi';
 import { createAdapterFromProvider } from '@circle-fin/adapter-viem-v2';
 import { BridgeKit, type BridgeResult } from '@circle-fin/bridge-kit';
@@ -329,6 +329,23 @@ const buildRetryStepsFromTxHashes = (txHashes: string[]): RetryStep[] => {
   ];
 };
 
+const getActivitySyncFingerprint = (activity: BridgeActivityRecord) => JSON.stringify({
+  walletAddress: activity.walletAddress,
+  sourceChainId: activity.sourceChainId,
+  destinationChainId: activity.destinationChainId,
+  amount: activity.amount,
+  token: activity.token,
+  startedAt: activity.startedAt,
+  status: activity.status,
+  step: activity.step,
+  signatureCount: activity.signatureCount,
+  approvalTxHash: activity.approvalTxHash,
+  sourceTxHash: activity.sourceTxHash,
+  receiveTxHash: activity.receiveTxHash,
+  txHashes: activity.txHashes,
+  updatedAt: activity.updatedAt,
+});
+
 // ERC20 ABI for balance reading
 const ERC20_ABI = parseAbi([
   'function balanceOf(address account) external view returns (uint256)',
@@ -381,6 +398,7 @@ export function useBridgeKit() {
   const { address, isConnected, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { data: walletClient } = useWalletClient();
+  const syncedActivityFingerprintsRef = useRef<Record<string, string>>({});
 
   const [state, setState] = useState<BridgeState>({
     step: 'idle',
@@ -1217,27 +1235,39 @@ export function useBridgeKit() {
 
       writeBridgeActivities(next);
 
-      void Promise.all(
-        next.map((activity) =>
-          upsertServerBridgeActivity({
-            id: activity.id,
-            walletAddress: activity.walletAddress,
-            sourceChainId: activity.sourceChainId,
-            destinationChainId: activity.destinationChainId,
-            amount: activity.amount,
-            token: activity.token,
-            startedAt: activity.startedAt,
-            status: activity.status,
-            step: activity.step,
-            signatureCount: activity.signatureCount,
-            approvalTxHash: activity.approvalTxHash,
-            sourceTxHash: activity.sourceTxHash,
-            receiveTxHash: activity.receiveTxHash,
-            txHashes: activity.txHashes,
-            updatedAt: activity.updatedAt,
+      const syncCandidates = next.filter((activity) => {
+        const fingerprint = getActivitySyncFingerprint(activity);
+        return syncedActivityFingerprintsRef.current[activity.id] !== fingerprint;
+      });
+
+      if (syncCandidates.length > 0) {
+        void Promise.all(
+          syncCandidates.map(async (activity) => {
+            const fingerprint = getActivitySyncFingerprint(activity);
+            const ok = await upsertServerBridgeActivity({
+              id: activity.id,
+              walletAddress: activity.walletAddress,
+              sourceChainId: activity.sourceChainId,
+              destinationChainId: activity.destinationChainId,
+              amount: activity.amount,
+              token: activity.token,
+              startedAt: activity.startedAt,
+              status: activity.status,
+              step: activity.step,
+              signatureCount: activity.signatureCount,
+              approvalTxHash: activity.approvalTxHash,
+              sourceTxHash: activity.sourceTxHash,
+              receiveTxHash: activity.receiveTxHash,
+              txHashes: activity.txHashes,
+              updatedAt: activity.updatedAt,
+            });
+
+            if (ok) {
+              syncedActivityFingerprintsRef.current[activity.id] = fingerprint;
+            }
           }),
-        ),
-      );
+        );
+      }
 
       const pendingCurrent = readPendingBridge();
       if (pendingCurrent?.sourceTxHash) {

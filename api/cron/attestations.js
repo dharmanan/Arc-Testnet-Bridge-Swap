@@ -1,6 +1,9 @@
 import { json, methodNotAllowed, serverError } from '../_lib/http.js';
 import { redisGetJson, redisSetJson, redisSmembers } from '../_lib/redis.js';
+import { enforceRateLimit } from '../_lib/security.js';
 import { pendingSetKey, transferKey, TRANSFER_STATUS } from '../_lib/transfers.js';
+
+const CRON_RATE_LIMIT = { windowSeconds: 60, maxRequests: 6 };
 
 function isAuthorized(req) {
   const secret = process.env.BRIDGE_CRON_SECRET;
@@ -37,6 +40,11 @@ export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
       return methodNotAllowed(res, ['GET']);
+    }
+
+    const rateLimitResponse = await enforceRateLimit(req, res, 'cron:attestations:get', CRON_RATE_LIMIT);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     if (!isAuthorized(req)) {

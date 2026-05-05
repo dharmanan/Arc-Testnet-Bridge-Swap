@@ -7,10 +7,13 @@ import {
   createActivityRecord,
   isActivityStatus,
 } from './_lib/activities.js';
-import { applyCors, enforceIdempotency, enforceRateLimit } from './_lib/security.js';
+import { applyCors, enforceIdempotency, enforceRateLimit, enforceRequestBodySize } from './_lib/security.js';
 import { isValidEvmAddress, isValidTxHash, toPositiveNumber } from './_lib/validate.js';
 
 const MAX_LIMIT = 100;
+const WRITE_RATE_LIMIT = { windowSeconds: 60, maxRequests: 20 };
+const READ_RATE_LIMIT = { windowSeconds: 60, maxRequests: 90 };
+const BODY_LIMIT = { maxBytes: 12 * 1024 };
 
 async function parseBody(req) {
   if (!req.body) {
@@ -45,7 +48,12 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const rateLimitResponse = await enforceRateLimit(req, res, 'activities:post');
+      const bodyLimitResponse = enforceRequestBodySize(req, res, BODY_LIMIT);
+      if (bodyLimitResponse) {
+        return bodyLimitResponse;
+      }
+
+      const rateLimitResponse = await enforceRateLimit(req, res, 'activities:post', WRITE_RATE_LIMIT);
       if (rateLimitResponse) {
         return rateLimitResponse;
       }
@@ -65,7 +73,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'GET') {
-      const rateLimitResponse = await enforceRateLimit(req, res, 'activities:get');
+      const rateLimitResponse = await enforceRateLimit(req, res, 'activities:get', READ_RATE_LIMIT);
       if (rateLimitResponse) {
         return rateLimitResponse;
       }

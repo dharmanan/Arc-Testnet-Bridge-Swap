@@ -5,16 +5,111 @@ import { redisExpire, redisIncr, redisSetNx } from './redis.js';
 const DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 60;
 const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 60;
 const DEFAULT_IDEMPOTENCY_TTL_SECONDS = 5 * 60;
+const DEFAULT_MAX_REQUEST_BODY_BYTES = 8 * 1024;
 
-function getClientIp(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
+const DEVELOPMENT_ORIGINS = new Set([
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+]);
+
+function splitHeaderValue(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return '';
   }
 
-  const realIp = req.headers['x-real-ip'];
-  if (typeof realIp === 'string' && realIp.trim()) {
-    return realIp.trim();
+  return value.split(',')[0].trim();
+}
+
+function appendVaryHeader(res, value) {
+  const current = res.getHeader('Vary');
+  if (!current) {
+    res.setHeader('Vary', value);
+    return;
+  }
+
+  const next = String(current)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (!next.includes(value)) {
+    next.push(value);
+    res.setHeader('Vary', next.join(', '));
+  }
+}
+
+function normalizeOrigin(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return '';
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return '';
+  }
+}
+
+function getRequestHost(req) {
+  return splitHeaderValue(req.headers['x-forwarded-host']) || splitHeaderValue(req.headers.host);
+}
+
+function getRequestProtocol(req) {
+  return splitHeaderValue(req.headers['x-forwarded-proto']) || 'https';
+}
+
+function isSameOriginRequest(req, origin) {
+  const host = getRequestHost(req);
+  if (!host) {
+    return false;
+  }
+
+  try {
+    const url = new URL(origin);
+    return url.host === host && url.protocol === `${getRequestProtocol(req)}:`;
+  } catch {
+    return false;
+  }
+}
+
+function isDevelopmentOrigin(origin) {
+  return process.env.NODE_ENV !== 'production' && DEVELOPMENT_ORIGINS.has(origin);
+}
+
+function setRateLimitHeaders(res, { windowSeconds, maxRequests, count, resetSeconds }) {
+  const remaining = Math.max(0, maxRequests - count);
+  const policy = `${maxRequests};w=${windowSeconds}`;
+  const reset = String(Math.max(1, resetSeconds));
+
+  res.setHeader('RateLimit-Limit', String(maxRequests));
+  res.setHeader('RateLimit-Remaining', String(remaining));
+  res.setHeader('RateLimit-Reset', reset);
+  res.setHeader('RateLimit-Policy', policy);
+
+  // Keep legacy headers for scanners and clients that still expect the older format.
+  res.setHeader('X-RateLimit-Limit', String(maxRequests));
+  res.setHeader('X-RateLimit-Remaining', String(remaining));
+  res.setHeader('X-RateLimit-Reset', reset);
+}
+
+function getClientIp(req) {
+  const forwarded = splitHeaderValue(req.headers['x-forwarded-for']);
+  if (forwarded) {
+    return forwarded;
+  }
+
+  const realIp = splitHeaderValue(req.headers['x-real-ip']);
+  if (realIp) {
+    return realIp;
+  }
+
+  const vercelForwarded = splitHeaderValue(req.headers['x-vercel-forwarded-for']);
+  if (vercelForwarded) {
+    return vercelForwarded;
   }
 
   return 'unknown';
@@ -24,26 +119,27 @@ function parseAllowlist() {
   const raw = process.env.CORS_ALLOWLIST || '';
   return raw
     .split(',')
-    .map((item) => item.trim())
+    .map((item) => normalizeOrigin(item.trim()))
     .filter(Boolean);
 }
 
 export function applyCors(req, res, allowedMethods = ['GET', 'POST', 'OPTIONS']) {
   const allowlist = parseAllowlist();
-  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+  const origin = normalizeOrigin(typeof req.headers.origin === 'string' ? req.headers.origin : '');
 
-  if (allowlist.length === 0) {
-    // Default safe mode for same-origin/browser fetches.
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  } else if (origin && allowlist.includes(origin)) {
+  if (origin) {
+    appendVaryHeader(res, 'Origin');
+  }
+
+  if (origin && (isSameOriginRequest(req, origin) || allowlist.includes(origin) || isDevelopmentOrigin(origin))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
   } else if (origin && !allowlist.includes(origin)) {
     return json(res, 403, { error: 'Origin is not allowed' });
   }
 
   res.setHeader('Access-Control-Allow-Methods', allowedMethods.join(', '));
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Idempotency-Key, X-Request-Timestamp, X-Request-Signature');
+  res.setHeader('Access-Control-Max-Age', '600');
 
   if (req.method === 'OPTIONS') {
     return json(res, 200, { ok: true });
@@ -56,16 +152,38 @@ export async function enforceRateLimit(req, res, routeScope, options = {}) {
   const windowSeconds = Number(options.windowSeconds || process.env.API_RATE_LIMIT_WINDOW_SECONDS || DEFAULT_RATE_LIMIT_WINDOW_SECONDS);
   const maxRequests = Number(options.maxRequests || process.env.API_RATE_LIMIT_MAX_REQUESTS || DEFAULT_RATE_LIMIT_MAX_REQUESTS);
   const ip = getClientIp(req);
-  const nowWindow = Math.floor(Date.now() / (windowSeconds * 1000));
+  const now = Date.now();
+  const windowMs = windowSeconds * 1000;
+  const nowWindow = Math.floor(now / windowMs);
   const key = `ratelimit:${routeScope}:${ip}:${nowWindow}`;
+  const resetSeconds = Math.ceil((((nowWindow + 1) * windowMs) - now) / 1000);
 
   const count = Number(await redisIncr(key));
   if (count === 1) {
     await redisExpire(key, windowSeconds);
   }
 
+  setRateLimitHeaders(res, { windowSeconds, maxRequests, count, resetSeconds });
+
   if (count > maxRequests) {
+    res.setHeader('Retry-After', String(Math.max(1, resetSeconds)));
     return json(res, 429, { error: 'Too many requests. Please retry shortly.' });
+  }
+
+  return null;
+}
+
+export function enforceRequestBodySize(req, res, options = {}) {
+  const maxBytes = Number(options.maxBytes || process.env.API_MAX_REQUEST_BODY_BYTES || DEFAULT_MAX_REQUEST_BODY_BYTES);
+  const contentLengthHeader = splitHeaderValue(req.headers['content-length']);
+  const contentLength = Number(contentLengthHeader);
+
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    return json(res, 413, { error: `Request body exceeds ${maxBytes} bytes` });
+  }
+
+  if (typeof req.body === 'string' && Buffer.byteLength(req.body, 'utf8') > maxBytes) {
+    return json(res, 413, { error: `Request body exceeds ${maxBytes} bytes` });
   }
 
   return null;

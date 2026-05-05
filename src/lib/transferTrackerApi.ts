@@ -154,7 +154,7 @@ export async function fetchServerBridgeActivities(walletAddress: string, retenti
   }
 }
 
-export async function upsertServerBridgeActivity(payload: UpsertActivityPayload): Promise<void> {
+export async function upsertServerBridgeActivity(payload: UpsertActivityPayload): Promise<boolean> {
   try {
     const response = await fetch('/api/activities', {
       method: 'POST',
@@ -168,14 +168,18 @@ export async function upsertServerBridgeActivity(payload: UpsertActivityPayload)
     if (!response.ok) {
       if (response.status === 404 || !isJsonResponse(response)) {
         warnTrackerApiUnavailableOnce(response.status);
-        return;
+        return false;
       }
 
       const text = await response.text();
       logger.warn(`Failed to upsert bridge activity (${response.status}): ${text}`);
+      return false;
     }
+
+    return true;
   } catch (error) {
     logger.warn('Failed to upsert server bridge activity:', error);
+    return false;
   }
 }
 
