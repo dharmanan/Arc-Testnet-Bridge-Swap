@@ -1446,6 +1446,8 @@ export function useBridgeKit() {
       } catch (err: any) {
         if (isNonceAlreadyUsedError(err)) {
           const now = Date.now();
+          void markTrackedTransferMinted(sourceTxHash);
+
           const existing = readBridgeActivities().find((item) => item.sourceTxHash?.toLowerCase() === sourceTxHash.toLowerCase());
           if (existing) {
             upsertBridgeActivity({

@@ -252,7 +252,7 @@ export async function dismissServerBridgeActivity(id: string): Promise<boolean> 
   }
 }
 
-export async function markTrackedTransferMinted(sourceTxHash: string, destinationTxHash: string): Promise<void> {
+export async function markTrackedTransferMinted(sourceTxHash: string, destinationTxHash?: string): Promise<void> {
   try {
     const response = await fetch('/api/transfers-update', {
       method: 'POST',
@@ -263,7 +263,7 @@ export async function markTrackedTransferMinted(sourceTxHash: string, destinatio
       body: JSON.stringify({
         action: 'mark_minted',
         sourceTxHash,
-        destinationTxHash,
+        ...(destinationTxHash ? { destinationTxHash } : {}),
       }),
     });
 

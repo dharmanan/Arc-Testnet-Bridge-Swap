@@ -1,5 +1,5 @@
 import { badRequest, json, methodNotAllowed, serverError } from './_lib/http.js';
-import { redisGetJson, redisSetJson, redisSrem } from './_lib/redis.js';
+import { redisGetJson, redisSetJson, redisSmembers, redisSrem } from './_lib/redis.js';
 import { pendingSetKey, transferKey, TRANSFER_STATUS } from './_lib/transfers.js';
 import { applyCors, enforceIdempotency, enforceRateLimit, enforceRequestBodySize } from './_lib/security.js';
 import { isValidTxHash } from './_lib/validate.js';
@@ -89,16 +89,17 @@ async function dismissTransfer(res, body) {
 async function markTransferMinted(res, body) {
   const sourceTxHash = String(body.sourceTxHash || '').toLowerCase();
   const destinationTxHashRaw = String(body.destinationTxHash || '');
+  const hasDestinationTxHash = Boolean(destinationTxHashRaw);
 
   if (!isValidTxHash(sourceTxHash)) {
     return badRequest(res, 'Invalid sourceTxHash');
   }
 
-  if (!isValidTxHash(destinationTxHashRaw)) {
+  if (hasDestinationTxHash && !isValidTxHash(destinationTxHashRaw)) {
     return badRequest(res, 'Invalid destinationTxHash');
   }
 
-  const candidates = await redisGetJson(`bridge:source:${sourceTxHash}`);
+  const candidates = await redisSmembers(`bridge:source:${sourceTxHash}`);
   if (!Array.isArray(candidates) || candidates.length === 0) {
     return json(res, 200, { ok: true, updated: false });
   }
@@ -110,7 +111,9 @@ async function markTransferMinted(res, body) {
     if (!transfer) continue;
 
     transfer.status = TRANSFER_STATUS.MINTED;
-    transfer.destinationTxHash = destinationTxHashRaw;
+    if (hasDestinationTxHash) {
+      transfer.destinationTxHash = destinationTxHashRaw;
+    }
     transfer.updatedAt = Date.now();
     await redisSetJson(key, transfer);
     await redisSrem(pendingSetKey(), id);
@@ -126,7 +129,7 @@ async function dismissTransferBySource(res, body) {
     return badRequest(res, 'Invalid sourceTxHash');
   }
 
-  const candidates = await redisGetJson(`bridge:source:${sourceTxHash}`);
+  const candidates = await redisSmembers(`bridge:source:${sourceTxHash}`);
   if (!Array.isArray(candidates) || candidates.length === 0) {
     return json(res, 200, { ok: true, updated: false });
   }
