@@ -102,6 +102,14 @@ function getBridgeEtaDetails(sourceChainId?: number) {
   return { label: '15-25 minutes', minutes: 25 }
 }
 
+function formatMaskedWalletAddress(address?: string | null, leading = 4, trailing = 4) {
+  if (!address) {
+    return ''
+  }
+
+  return `${address.slice(0, leading)}...${address.slice(-trailing)}`
+}
+
 function findFirstStringMatch(value: unknown, pattern: RegExp, seen = new WeakSet<object>()): string | undefined {
   if (typeof value === 'string' && pattern.test(value)) {
     return value
@@ -1645,7 +1653,7 @@ export function BridgeTab() {
                   <p className="mt-1">
                     <span className="text-slate-500">Source signer:</span>{' '}
                     {isPhantomConnected && phantomSolanaAddress
-                      ? `Phantom ${phantomSolanaAddress.slice(0, 4)}...${phantomSolanaAddress.slice(-4)}`
+                      ? `Phantom ${formatMaskedWalletAddress(phantomSolanaAddress)}`
                       : 'Phantom Solana not connected'}
                   </p>
                   <p className="mt-1">
@@ -1901,8 +1909,9 @@ export function BridgeTab() {
                   <div className="rounded-xl border border-slate-200 bg-white p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-slate-500">Connected Solana address</p>
-                        <p className="mt-1 break-all text-xs text-slate-900">{phantomSolanaAddress}</p>
+                        <p className="text-xs text-slate-500">Connected Phantom wallet</p>
+                        <p className="mt-1 text-sm font-medium text-slate-900">Phantom {formatMaskedWalletAddress(phantomSolanaAddress, 6, 4)}</p>
+                        <p className="mt-1 text-xs text-slate-500">Hidden for privacy. The connected wallet remains identifiable from the shortened address.</p>
                       </div>
                       {!isSolanaSourceMode && (
                         <button
