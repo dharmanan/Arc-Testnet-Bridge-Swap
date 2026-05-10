@@ -763,12 +763,23 @@ export function BridgeTab() {
     }
   }, [pendingBridge, trackerSnapshot])
 
+  const hasPendingActivity = trackedTransfers.some(
+    (t) => t.status !== 'minted' && t.status !== 'dismissed',
+  ) || Boolean(pendingBridge)
+
   useEffect(() => {
     if (!isConnected || !address) {
       return
     }
 
     void refreshTrackedTransfers()
+
+    // Only keep polling while there is an active/pending transfer.
+    // When everything is minted or dismissed, stop hitting Redis.
+    if (!hasPendingActivity) {
+      return
+    }
+
     const intervalId = window.setInterval(() => {
       void refreshTrackedTransfers()
     }, 60000)
@@ -776,7 +787,7 @@ export function BridgeTab() {
     return () => {
       window.clearInterval(intervalId)
     }
-  }, [isConnected, address, refreshTrackedTransfers])
+  }, [isConnected, address, hasPendingActivity, refreshTrackedTransfers])
 
   useEffect(() => {
     const checkKey = trackedBridge?.sourceTxHash ? `${trackedBridge.sourceChainId}:${trackedBridge.sourceTxHash}:${trackedStatus}` : null
