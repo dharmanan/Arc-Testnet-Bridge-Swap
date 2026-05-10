@@ -4,6 +4,8 @@ Arc Bridge is a testnet swap and bridge app for Sepolia, Arc Testnet, Base Sepol
 
 [![Watch the demo on YouTube](https://img.youtube.com/vi/pdldO1BlC-k/maxresdefault.jpg)](https://www.youtube.com/watch?v=pdldO1BlC-k)
 
+> ▶ Click the image above to watch the demo on YouTube.
+
 ## v2.3 Update
 
 This v2.3 release focuses on practical bridge usability, activity persistence across devices, and safer long running flow handling.
