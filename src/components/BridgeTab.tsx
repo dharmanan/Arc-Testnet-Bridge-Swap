@@ -771,7 +771,7 @@ export function BridgeTab() {
     void refreshTrackedTransfers()
     const intervalId = window.setInterval(() => {
       void refreshTrackedTransfers()
-    }, 15000)
+    }, 60000)
 
     return () => {
       window.clearInterval(intervalId)
