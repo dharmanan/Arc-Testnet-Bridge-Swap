@@ -7,6 +7,31 @@ const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 60;
 const DEFAULT_IDEMPOTENCY_TTL_SECONDS = 5 * 60;
 const DEFAULT_MAX_REQUEST_BODY_BYTES = 8 * 1024;
 
+// In-memory cache: blocked IP+scope keys → expiry timestamp (ms).
+// Persists within a warm serverless instance so repeated spam requests
+// from the same IP are rejected without touching Redis.
+const _rateLimitBlockCache = new Map();
+const BLOCK_CACHE_MAX_SIZE = 2000;
+
+function _isBlockedInMemory(key, now) {
+  const expiry = _rateLimitBlockCache.get(key);
+  if (expiry === undefined) return false;
+  if (now >= expiry) {
+    _rateLimitBlockCache.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function _markBlockedInMemory(key, expiryMs) {
+  if (_rateLimitBlockCache.size >= BLOCK_CACHE_MAX_SIZE) {
+    // Evict oldest entry to keep memory bounded.
+    const firstKey = _rateLimitBlockCache.keys().next().value;
+    _rateLimitBlockCache.delete(firstKey);
+  }
+  _rateLimitBlockCache.set(key, expiryMs);
+}
+
 const DEVELOPMENT_ORIGINS = new Set([
   'http://localhost:3000',
   'http://127.0.0.1:3000',
@@ -156,7 +181,16 @@ export async function enforceRateLimit(req, res, routeScope, options = {}) {
   const windowMs = windowSeconds * 1000;
   const nowWindow = Math.floor(now / windowMs);
   const key = `ratelimit:${routeScope}:${ip}:${nowWindow}`;
-  const resetSeconds = Math.ceil((((nowWindow + 1) * windowMs) - now) / 1000);
+  const windowExpiry = (nowWindow + 1) * windowMs;
+  const resetSeconds = Math.ceil((windowExpiry - now) / 1000);
+
+  // Fast path: if this IP+scope is already known to be over-limit in memory,
+  // reject immediately without spending a Redis command.
+  if (_isBlockedInMemory(key, now)) {
+    setRateLimitHeaders(res, { windowSeconds, maxRequests, count: maxRequests + 1, resetSeconds });
+    res.setHeader('Retry-After', String(Math.max(1, resetSeconds)));
+    return json(res, 429, { error: 'Too many requests. Please retry shortly.' });
+  }
 
   const count = Number(await redisIncr(key));
   if (count === 1) {
@@ -166,6 +200,8 @@ export async function enforceRateLimit(req, res, routeScope, options = {}) {
   setRateLimitHeaders(res, { windowSeconds, maxRequests, count, resetSeconds });
 
   if (count > maxRequests) {
+    // Cache the block decision so subsequent requests from this IP skip Redis.
+    _markBlockedInMemory(key, windowExpiry);
     res.setHeader('Retry-After', String(Math.max(1, resetSeconds)));
     return json(res, 429, { error: 'Too many requests. Please retry shortly.' });
   }

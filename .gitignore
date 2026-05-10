@@ -12,5 +12,8 @@ dist/
 # Local-only markdown docs
 *.md
 !README.md
+
+# Security reports and local audit files
+*.pdf
 .vercel
 .env*.local
