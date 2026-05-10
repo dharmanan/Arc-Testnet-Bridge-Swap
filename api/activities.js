@@ -1,5 +1,8 @@
 import { badRequest, json, methodNotAllowed, serverError } from './_lib/http.js';
-import { redisDel, redisGetJson, redisSetJson, redisZadd, redisZrem, redisZrevrange } from './_lib/redis.js';
+import { redisDel, redisExpire, redisGetJson, redisSetJson, redisZadd, redisZrem, redisZrevrange } from './_lib/redis.js';
+
+// Completed activities expire from Redis after 7 days — no manual cleanup needed.
+const COMPLETED_ACTIVITY_TTL_SECONDS = 7 * 24 * 60 * 60;
 import {
   ACTIVITY_RETENTION_DAYS,
   activityKey,
@@ -161,6 +164,11 @@ async function handleUpsertActivityBody(res, body) {
   await redisSetJson(activityKey(activity.id), activity);
   await redisZadd(activityWalletIndexKey(activity.walletAddress), activity.updatedAt, activity.id);
 
+  // If already completed on upsert (e.g. minted), start the expiry clock immediately.
+  if (activity.status === 'minted' || activity.status === 'dismissed') {
+    await redisExpire(activityKey(activity.id), COMPLETED_ACTIVITY_TTL_SECONDS);
+  }
+
   return json(res, 201, { activity });
 }
 
@@ -183,6 +191,7 @@ async function handleDismissActivity(res, body) {
 
   await redisSetJson(activityKey(id), next);
   await redisZadd(activityWalletIndexKey(next.walletAddress), next.updatedAt, next.id);
+  await redisExpire(activityKey(id), COMPLETED_ACTIVITY_TTL_SECONDS);
 
   return json(res, 200, { activity: next });
 }

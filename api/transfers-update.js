@@ -1,8 +1,11 @@
 import { badRequest, json, methodNotAllowed, serverError } from './_lib/http.js';
-import { redisGetJson, redisSetJson, redisSmembers, redisSrem } from './_lib/redis.js';
+import { redisExpire, redisGetJson, redisSetJson, redisSmembers, redisSrem } from './_lib/redis.js';
 import { pendingSetKey, transferKey, TRANSFER_STATUS } from './_lib/transfers.js';
 import { applyCors, enforceIdempotency, enforceRateLimit, enforceRequestBodySize } from './_lib/security.js';
 import { isValidTxHash } from './_lib/validate.js';
+
+// Completed transfers expire from Redis after 7 days — no manual cleanup needed.
+const COMPLETED_TRANSFER_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const WRITE_RATE_LIMIT = { windowSeconds: 60, maxRequests: 20 };
 const BODY_LIMIT = { maxBytes: 4 * 1024 };
@@ -82,6 +85,7 @@ async function dismissTransfer(res, body) {
   transfer.updatedAt = Date.now();
   await redisSetJson(key, transfer);
   await redisSrem(pendingSetKey(), id);
+  await redisExpire(key, COMPLETED_TRANSFER_TTL_SECONDS);
 
   return json(res, 200, { transfer });
 }
@@ -117,6 +121,7 @@ async function markTransferMinted(res, body) {
     transfer.updatedAt = Date.now();
     await redisSetJson(key, transfer);
     await redisSrem(pendingSetKey(), id);
+    await redisExpire(key, COMPLETED_TRANSFER_TTL_SECONDS);
     updated = true;
   }
 
@@ -144,6 +149,7 @@ async function dismissTransferBySource(res, body) {
     transfer.updatedAt = Date.now();
     await redisSetJson(key, transfer);
     await redisSrem(pendingSetKey(), id);
+    await redisExpire(key, COMPLETED_TRANSFER_TTL_SECONDS);
     updated = true;
   }
 
